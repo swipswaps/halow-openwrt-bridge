@@ -1,31 +1,26 @@
 #!/bin/sh
-# Stop HaLow AP.
+# Stop HaLow AP cleanly.
 
 HALOW_IF=wlan0
 BRIDGE=br-lan
 
 if ip link show "$BRIDGE" >/dev/null 2>&1; then
-    if brctl show "$BRIDGE" 2>&1 | grep -q "$HALOW_IF"; then
-        brctl delif "$BRIDGE" "$HALOW_IF"
-        echo "$HALOW_IF removed from $BRIDGE via brctl."
-    fi
+    brctl delif "$BRIDGE" "$HALOW_IF" 2>&1
     for port in $(uci get network.@device[-1].ports 2>&1); do
         if [ "$port" = "$HALOW_IF" ]; then
             uci del_list network.@device[-1].ports="$HALOW_IF"
             uci commit network
             /etc/init.d/network reload
-            echo "$HALOW_IF removed from UCI bridge ports."
             break
         fi
     done
 fi
 
-if pidof hostapd_s1g >/dev/null 2>&1; then
-    killall -q hostapd_s1g
-    echo "hostapd_s1g stopped."
-    sleep 1
-fi
-
-ip link set "$HALOW_IF" down
-echo "HaLow interface down."
+for pid in $(pidof hostapd_s1g); do
+    kill "$pid" 2>&1
+done
+sleep 1
+sync
+ip link set "$HALOW_IF" down 2>&1
+echo "HaLow stopped."
 exit 0

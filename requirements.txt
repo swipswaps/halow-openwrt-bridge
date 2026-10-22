@@ -1,4 +1,3 @@
-# Build-host dependencies for the Morse Micro OpenWrt fork
 build-essential
 clang
 flex
@@ -16,9 +15,7 @@ python3-distutils
 python3-setuptools
 gcc-multilib
 
-# Runtime dependencies on the OpenWrt target
-# iw             -> PHY and interface discovery
-# bridge-utils   -> brctl show / brctl delif
-# iptables/nft   -> firewall backend (whichever your release uses)
+# Runtime on the OpenWrt target
 iw
 bridge-utils
+kmod
