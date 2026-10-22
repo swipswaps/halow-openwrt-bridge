@@ -1,7 +1,9 @@
 #!/bin/sh /etc/rc.common
 # Procd init script for the HaLow AP.
-# respawn 3600 1 0 matches OpenWrt's own hostapd init so that a daemonised
-# hostapd_s1g is not misclassified as a crash loop.
+# respawn 3600 1 0 matches OpenWrt's own hostapd init and prevents
+# procd from classifying a daemonised hostapd_s1g as a crash loop.
+# start-ap.sh exits non-zero when hostapd fails, so procd respawns
+# the whole script rather than an orphaned sleep process.
 
 START=95
 STOP=10
@@ -16,7 +18,7 @@ start_service() {
         exit 2
     fi
     procd_open_instance
-    procd_set_param command /bin/sh -c "$START_SCRIPT && sleep infinity"
+    procd_set_param command /bin/sh "$START_SCRIPT"
     procd_set_param respawn 3600 1 0
     procd_set_param stdout 1
     procd_set_param stderr 1
@@ -27,4 +29,5 @@ stop_service() {
     if [ -x "$STOP_SCRIPT" ]; then
         /bin/sh "$STOP_SCRIPT"
     fi
+    killall -q hostapd_s1g
 }

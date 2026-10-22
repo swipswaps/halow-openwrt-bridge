@@ -1,42 +1,43 @@
 #!/bin/sh
-# MM8108 receive-degradation workaround.
-# Default path: reduce bandwidth.  Forcing MCS is opt-in because it
-# increases packet loss when the rate is wrong for the channel.
-# Usage:
-#   ./tune-morse.sh bandwidth 1      # 1 MHz (from 2 MHz)
-#   ./tune-morse.sh mcs 2            # opt-in fixed MCS
-#   ./tune-morse.sh rssi-offset 2    # where the driver exposes it
+# MM8108 field workarounds.  UCI is deliberately bypassed for HaLow, so
+# this script prints physical and module-parameter actions instead of
+# writing UCI options that do not exist.
 
 ACTION="$1"
 VALUE="$2"
 
 case "$ACTION" in
-    bandwidth)
-        case "$VALUE" in
-            1|2|4|8)
-                uci set wireless.radio0.s1g_prim_chwidth=$([ "$VALUE" = "1" ] && echo 0 || echo 1)
-                uci commit wireless
-                echo "bandwidth set to $VALUE MHz via UCI (manual start-ap.sh still required)."
-                ;;
-            *)
-                echo "bandwidth must be 1, 2, 4, or 8."
-                exit 2
-                ;;
-        esac
+    rssi-cliff)
+        echo "MM8108 2 MHz near -73 dBm: documented receive degradation."
+        echo "Workaround (release notes): increase or decrease RSSI by ~2 dB."
+        echo "  - Add a 2 dB attenuator on the AP antenna, or"
+        echo "  - Move the AP and STA ~2 dB closer in path loss (roughly 20-30 cm"
+        echo "    at 900 MHz in free space), or"
+        echo "  - Reduce bandwidth from 2 MHz to 1 MHz (edit s1g_prim_chwidth=0"
+        echo "    and op_class=68 in hostapd_s1g.conf, then restart hostapd_s1g)."
         ;;
-    mcs)
-        echo "WARNING: forced MCS increases packet loss when the rate is wrong."
-        echo "Reload the morse module with:"
-        echo "  rmmod morse; insmod morse fixed_mcs=$VALUE enable_fixed_rate=1"
-        echo "This is not persistent; add it to /etc/modules.d/ if needed."
+    strong-signal)
+        echo "MM8108 1 MHz at strong signal: documented receive degradation."
+        echo "Workaround (release notes): move devices further apart to lower"
+        echo "signal strength.  Target below -50 dBm at the AP."
         ;;
-    rssi-offset)
-        echo "Driver RSSI offset is not exposed as a module parameter in 2.11.12."
-        echo "The documented workaround is to shift the physical RSSI by +/- 2 dB,"
-        echo "which means repositioning antennas or adding an attenuator."
+    close-range)
+        echo "MM8108 very close range (<10 dBm): intermittent STA association"
+        echo "failure is documented.  Workaround (release notes): ensure at"
+        echo "least 2 meters separation between AP and STA before pairing."
+        ;;
+    queue)
+        echo "Multi-STA WDS downlink imbalance: set max_txq_len=0."
+        echo "  rmmod morse; insmod morse max_txq_len=0"
+        echo "Not persistent; add to /etc/modules.d/ if needed."
+        ;;
+    airtime)
+        echo "Kernel >6.2 airtime fairness is off by default on MM8108."
+        echo "  rmmod morse; insmod morse enable_airtime_fairness=1"
+        echo "Morse Micro also provides airtime-fairness patches in its feed."
         ;;
     *)
-        echo "usage: $0 bandwidth {1|2|4|8} | mcs {0..7} | rssi-offset {n}"
+        echo "usage: $0 rssi-cliff | strong-signal | close-range | queue | airtime"
         exit 2
         ;;
 esac
