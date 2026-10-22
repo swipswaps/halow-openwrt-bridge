@@ -26,17 +26,17 @@ case "$COUNTRY:$CHWIDTH:$OPCLASS" in
     *)
         echo "regulatory tuple invalid: country=$COUNTRY width=$CHWIDTH op_class=$OPCLASS"
         echo "valid: US 0->68 1->69 | EU 0->66 1->67 | AU 0->68 1->69 | JP 0->68 1->69"
-        echo "Edit country_code, s1g_prim_chwidth, and op_class together."
+        echo "Source: IEEE 802.11-2024 Annex E, Table E-5."
         exit 5
         ;;
 esac
 echo "regulatory tuple: country=$COUNTRY width=$CHWIDTH op_class=$OPCLASS"
 
-# --- PHY discovery --------------------------------------------------------
+# --- PHY discovery (SC2012 fixed: find, not ls) ---------------------------
 if ! iw dev "$HALOW_IF" info >/dev/null 2>&1; then
     PHY=$(iw dev 2>&1 | awk '/phy#/ {print $2; exit}')
     if [ -z "$PHY" ]; then
-        PHY=$(ls /sys/class/ieee80211/ 2>&1 | head -n 1)
+        PHY=$(find /sys/class/ieee80211/ -maxdepth 1 -type l -printf '%f\n' 2>&1 | head -n 1)
     fi
     if [ -n "$PHY" ]; then
         iw phy "$PHY" interface add "$HALOW_IF" type managed
