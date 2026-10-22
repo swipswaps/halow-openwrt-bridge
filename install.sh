@@ -13,7 +13,7 @@ for f in /etc/rc.common /etc/config/network /etc/config/firewall; do
     fi
 done
 
-for tool in uci iw; do
+for tool in uci iw hostapd_s1g; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "$tool missing; install it first (opkg install $tool)."
         exit 2
@@ -31,6 +31,7 @@ for f in openwrt/start-ap.sh openwrt/stop-ap.sh openwrt/hostapd_s1g.conf \
 done
 
 mkdir -p "$TARGET_DIR" /var/run/hostapd || { echo "cannot create target dirs"; exit 3; }
+chmod 750 /var/run/hostapd
 cp openwrt/start-ap.sh openwrt/stop-ap.sh openwrt/hostapd_s1g.conf \
    openwrt/disable-uci-halow.sh openwrt/tune-morse.sh \
    openwrt/firewall-halow.sh openwrt/disable-dhcp-halow.sh \
@@ -51,5 +52,4 @@ echo "  3. /etc/init.d/halow-ap start"
 echo ""
 echo "optional: copy openwrt/uci-defaults-halow to /etc/uci-defaults/99-halow"
 echo "  and reboot to seed the br-lan port and lan firewall zone."
-echo "  uci-defaults-halow does NOT disable any radioN."
 exit 0

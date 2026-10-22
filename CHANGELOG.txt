@@ -1,40 +1,32 @@
 Wi-Fi HaLow OpenWrt Bridge - Change Log
 ========================================
 
+1.2.2  2026-10-22
+  Fix: set-global-mac.sh and README now state that the globally unique
+       MAC bit is the primary mechanism for ethN naming (cdc_ncm.c);
+       renaming is the fallback.  The previous round incorrectly said
+       the bit does not affect naming.
+  Fix: hostapd_s1g.conf adds eapol_key_index_workaround=0 and
+       own_ip_addr=127.0.0.1, both present in every Gateworks S1G
+       example.
+  Fix: start-ap.sh uses flock on /var/run/halow-ap.lock so two
+       invocations cannot race; FORCE=1 still replaces a running AP.
+  Fix: install.sh verifies hostapd_s1g is installed and chmods
+       /var/run/hostapd 750.
+  Fix: lint.sh scopes SC2034 to halow-ap.init only.
+  Docs: README section 10 corrects the CDC-NCM mechanism and scopes
+        the Android regex claim to pre-U / U+ / V+.
+  Docs: README section 12 states that a tag without the fetched
+        GPL-2.0 text is non-compliant with §1.
+
 1.2.1  2026-10-22
-  Fix: hostapd_s1g.conf ships __CHANGEME__ instead of a real default
-       PSK.  start-ap.sh rejects CHANGEME/empty passphrases.  install.sh
-       chmod 600s the installed configuration.  README documents PSK
-       rotation for deployments that copied the previous placeholder.
-  Fix: android/set-global-mac.sh performs an interface rename
-       (usbN -> ethN) instead of relying on a MAC-bit change; the
-       previous reasoning was incorrect on mainline Linux.  README and
-       check-cdc-ncm.sh corrected with the usbnet_probe and
-       config_ethernet_iface_regex citations.
-  Fix: LICENSE replaced with an SPDX pointer plus fetch-license.sh; the
-       prior file was a paraphrase, not the verbatim GPL-2.0 text.
-  Fix: start-ap.sh refuses a second hostapd_s1g (exit 6) unless FORCE=1.
-  Fix: install.sh checks for /etc/rc.common, uci, and iw before writing.
-  Fix: disable-dhcp-halow.sh only restarts dnsmasq when its init script
-       exists.
-  Add: push.sh moves the lint gate into the repository; raw git push
-       bypasses it by design.
-  Add: fetch-license.sh, LICENSE pointer, .gitignore patterns for
-       *.local and LICENSE.tmp.
-  Docs: CDC-NCM citation changed from a Rust crate doc to the Linux
-        usbnet.c and AOSP config_ethernet_iface_regex sources.
+  Fix: placeholder PSK rejected, set-global-mac rename, LICENSE pointer.
 
 1.2.0  2026-10-22
-  Fix: lint.sh exit codes, install.sh in FILES, push gate on lint failure.
-  Fix: uci-defaults-halow no longer disables every radioN.
-  Fix: setup-relayd.sh SC2140, lint.sh SC2181.
-  Add: /var/run/hostapd creation in start-ap.sh and install.sh.
-  Docs: thermal hedged to datasheet; .gitignore, CHANGELOG.
+  Fix: lint gate, uci-defaults radio guard, setup-relayd SC2140.
 
 1.1.0  2026-10-22
-  Add: GPL-2.0 license file (later corrected), install.sh,
-       set-global-mac.sh root check.
-  Docs: GHSA completeness, relayd caveat, thermal warning.
+  Add: GPL-2.0, install.sh, GHSA completeness, thermal warning.
 
 1.0.0  2026-10-21
   First stable release.

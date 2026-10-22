@@ -8,9 +8,17 @@
 HALOW_IF=wlan0
 BRIDGE=br-lan
 CONF="$(dirname "$0")/hostapd_s1g.conf"
+LOCK=/var/run/halow-ap.lock
+
+# --- single-instance lock -------------------------------------------------
+exec 9>"$LOCK"
+if ! flock -n 9; then
+    echo "another start-ap.sh holds $LOCK."
+    exit 6
+fi
 
 # --- tools ----------------------------------------------------------------
-for tool in iw hostapd_s1g; do
+for tool in iw hostapd_s1g flock; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "$tool not found.  Install the matching OpenWrt package."
         exit 4
@@ -21,7 +29,6 @@ done
 PSK=$(awk '/^wpa_passphrase=/ {sub(/^wpa_passphrase=/,""); print; exit}' "$CONF")
 if [ -z "$PSK" ] || echo "$PSK" | grep -q "CHANGEME"; then
     echo "wpa_passphrase in $CONF is a placeholder or empty."
-    echo "Set a real PSK before starting the AP."
     exit 5
 fi
 
@@ -46,7 +53,6 @@ case "$COUNTRY" in
             echo "Unknown region $COUNTRY."
             echo "Set ALLOW_UNKNOWN_REGION=1 if $CHWIDTH:$OPCLASS is correct"
             echo "for your regulator.  EU 1 MHz=66 2 MHz=67; US/AU/JP 1 MHz=68 2 MHz=69."
-            echo "Source: IEEE 802.11-2020 Annex E, Table E-5."
             exit 5
         fi
         ;;
@@ -62,16 +68,22 @@ if [ "$MATCH" -eq 0 ]; then
 fi
 echo "regulatory tuple: $COUNTRY/$CHWIDTH/$OPCLASS"
 
-# --- refuse double start --------------------------------------------------
+# --- stop any existing hostapd_s1g before probe ---------------------------
 if pidof hostapd_s1g >/dev/null 2>&1; then
     if [ "${FORCE:-0}" != "1" ]; then
-        echo "hostapd_s1g is already running."
-        echo "Set FORCE=1 to stop it and restart."
+        echo "hostapd_s1g already running; set FORCE=1 to replace it."
         exit 6
     fi
-    echo "FORCE=1: stopping existing hostapd_s1g."
     killall -q hostapd_s1g
-    sleep 1
+    # wait up to 3 s for the interface to leave AP mode
+    i=0
+    while [ "$i" -lt 3 ]; do
+        if ! iw dev "$HALOW_IF" info 2>&1 | grep -q "type AP"; then
+            break
+        fi
+        sleep 1
+        i=$((i + 1))
+    done
 fi
 
 # --- PHY discovery (BusyBox-safe) -----------------------------------------
@@ -131,6 +143,7 @@ done
 [ "$CHANGED" -eq 1 ] && uci commit dhcp
 
 mkdir -p /var/run/hostapd
+chmod 750 /var/run/hostapd
 
 echo "exec hostapd_s1g $CONF"
 exec hostapd_s1g "$CONF"
