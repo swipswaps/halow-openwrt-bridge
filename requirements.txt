@@ -1,5 +1,4 @@
 # Build-host dependencies for the Morse Micro OpenWrt fork
-# Ubuntu 20.04 / 22.04 / 24.04
 build-essential
 clang
 flex
@@ -13,14 +12,13 @@ unzip
 zlib1g-dev
 swig
 golang-go
-python3-distutils        ; Ubuntu 20.04 / 22.04 only
-python3-setuptools      ; Ubuntu 24.04 only
-gcc-multilib            ; only if building x86 binaries on x86_64
+python3-distutils
+python3-setuptools
+gcc-multilib
 
-# OpenWrt package selections
-# CONFIG_PACKAGE_mm8108-firmware=y
-# CONFIG_PACKAGE_kmod-mm8108_usb=y
-# CONFIG_PACKAGE_hostapd_s1g=y
-# CONFIG_PACKAGE_wpa_supplicant_s1g=y
-# CONFIG_PACKAGE_libwpa_client_s1g=y
-# CONFIG_PACKAGE_morse_cli=y
+# Runtime dependencies on the OpenWrt target
+# iw             -> PHY and interface discovery
+# bridge-utils   -> brctl show / brctl delif
+# iptables/nft   -> firewall backend (whichever your release uses)
+iw
+bridge-utils

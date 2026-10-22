@@ -1,15 +1,12 @@
 #!/bin/sh
-# Disable UCI control of HaLow radios.
-# Dynamically discovers all radioN sections and disables them.
+# Disable UCI control of every radioN section.
 
-UCI_RADIOS=$(uci show wireless 2>&1 | grep -oE 'wireless\.radio[0-9]+' | sort -u)
-
-for radio in $UCI_RADIOS; do
-    uci set "$radio.disabled='1'"
-    echo "disabled UCI control for $radio"
+for section in $(uci show wireless 2>&1 | awk -F. '/\.radio[0-9]+=/ {print $2}'); do
+    uci set "wireless.$section.disabled='1'"
+    echo "disabled UCI control for $section"
 done
 
 uci commit wireless
 wifi reload
-
 echo "UCI HaLow radio control disabled."
+exit 0
