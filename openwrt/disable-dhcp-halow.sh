@@ -20,6 +20,10 @@ for section in $(uci show dhcp 2>&1 | awk -F. '/=dhcp$/ {print $2}'); do
 done
 
 if [ "$CHANGED" -eq 1 ]; then
-    /etc/init.d/dnsmasq restart
+    if [ -x /etc/init.d/dnsmasq ]; then
+        /etc/init.d/dnsmasq restart
+    else
+        echo "dnsmasq init script not found; skipping restart."
+    fi
 fi
 exit 0

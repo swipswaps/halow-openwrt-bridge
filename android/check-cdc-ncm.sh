@@ -1,10 +1,8 @@
 #!/bin/sh
 # CDC-NCM diagnosis.
-# On many Android releases, notably before Android 14 (U), the Ethernet
-# tethering config matches ethX only, and the kernel names a CDC-NCM
-# interface usbX when bit 1 of the first MAC octet is set (locally
-# administered).  Android 14 changed the regex to include usbX, then
-# reverted it and re-landed it for Android 15 (V); vendor forks vary.
+# usbnet_probe() names cdc_ncm interfaces usbN; Android's default
+# config_ethernet_iface_regex matches ethN, so tethering does not
+# enable on usbN.  The fix is a rename, not a MAC change.
 
 echo "=== Interfaces ==="
 ip -br link 2>&1
@@ -15,12 +13,7 @@ for iface in $(ip -br link 2>&1 | awk '{print $1}'); do
     [ -z "$MAC" ] && continue
     FIRST=$(echo "$MAC" | cut -d: -f1)
     LOCAL=$(( (0x$FIRST & 0x02) >> 1 ))
-    if [ "$LOCAL" -eq 1 ]; then
-        printf "%s  %s  LOCAL_BIT=1  likely usbX; tethering may be OFF\n" "$iface" "$MAC"
-        printf "  REMEDIATION: ./set-global-mac.sh %s\n" "$iface"
-    else
-        printf "%s  %s  LOCAL_BIT=0  likely ethX; tethering should be ON\n" "$iface" "$MAC"
-    fi
+    printf "%s  %s  local_bit=%s\n" "$iface" "$MAC" "$LOCAL"
 done
 
 echo "=== Android Ethernet service ==="
@@ -29,7 +22,15 @@ echo "tether_enable=$(settings get global tether_enable 2>&1)"
 
 echo "=== Naming summary ==="
 if ip -br link 2>&1 | awk '{print $1}' | grep -q '^eth'; then
-    echo "ethX present; Android Ethernet service should recognise it."
+    echo "ethN present; Android Ethernet service should recognise it."
 else
-    echo "No ethX.  If usbX exists and tethering is off, run set-global-mac.sh."
+    echo "No ethN."
+    for iface in $(ip -br link 2>&1 | awk '{print $1}'); do
+        case "$iface" in
+            usb*)
+                echo "  usbN detected ($iface).  Run:"
+                echo "    ./set-global-mac.sh $iface"
+                ;;
+        esac
+    done
 fi

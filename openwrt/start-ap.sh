@@ -2,19 +2,28 @@
 # Start HaLow AP.  Execs hostapd_s1g in the foreground so procd tracks
 # the real daemon.
 # Exit codes: 0 unreachable (exec replaces shell), 2 no PHY,
-# 3 bridge missing, 4 setup failed, 5 regulatory tuple invalid.
+# 3 bridge missing, 4 setup failed, 5 regulatory/PSK invalid,
+# 6 hostapd_s1g already running.
 
 HALOW_IF=wlan0
 BRIDGE=br-lan
 CONF="$(dirname "$0")/hostapd_s1g.conf"
 
-# --- required tools -------------------------------------------------------
+# --- tools ----------------------------------------------------------------
 for tool in iw hostapd_s1g; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "$tool not found.  Install the matching OpenWrt package."
         exit 4
     fi
 done
+
+# --- placeholder PSK guard ------------------------------------------------
+PSK=$(awk '/^wpa_passphrase=/ {sub(/^wpa_passphrase=/,""); print; exit}' "$CONF")
+if [ -z "$PSK" ] || echo "$PSK" | grep -q "CHANGEME"; then
+    echo "wpa_passphrase in $CONF is a placeholder or empty."
+    echo "Set a real PSK before starting the AP."
+    exit 5
+fi
 
 # --- regulatory tuple -----------------------------------------------------
 COUNTRY=$(awk -F= '/^country_code=/ {print $2}' "$CONF" 2>&1)
@@ -53,6 +62,18 @@ if [ "$MATCH" -eq 0 ]; then
 fi
 echo "regulatory tuple: $COUNTRY/$CHWIDTH/$OPCLASS"
 
+# --- refuse double start --------------------------------------------------
+if pidof hostapd_s1g >/dev/null 2>&1; then
+    if [ "${FORCE:-0}" != "1" ]; then
+        echo "hostapd_s1g is already running."
+        echo "Set FORCE=1 to stop it and restart."
+        exit 6
+    fi
+    echo "FORCE=1: stopping existing hostapd_s1g."
+    killall -q hostapd_s1g
+    sleep 1
+fi
+
 # --- PHY discovery (BusyBox-safe) -----------------------------------------
 if ! iw dev "$HALOW_IF" info >/dev/null 2>&1; then
     PHY=""
@@ -76,7 +97,7 @@ fi
 
 ip link set "$HALOW_IF" up || exit 4
 
-# --- resolve the br-lan device section by name ----------------------------
+# --- br-lan device section by name ----------------------------------------
 BRIDGE_SECTION=""
 for section in $(uci show network 2>&1 | awk -F. '/=device$/ {print $2}'); do
     NAME=$(uci get "network.$section.name" 2>&1)
@@ -98,7 +119,7 @@ if [ "$FOUND" -eq 0 ]; then
     /etc/init.d/network reload
 fi
 
-# --- DHCP suppression, one commit -----------------------------------------
+# --- DHCP suppression -----------------------------------------------------
 CHANGED=0
 for section in $(uci show dhcp 2>&1 | awk -F. '/=dhcp$/ {print $2}'); do
     IFACE=$(uci get "dhcp.$section.interface" 2>&1)
@@ -109,7 +130,6 @@ for section in $(uci show dhcp 2>&1 | awk -F. '/=dhcp$/ {print $2}'); do
 done
 [ "$CHANGED" -eq 1 ] && uci commit dhcp
 
-# --- hostapd control socket directory -------------------------------------
 mkdir -p /var/run/hostapd
 
 echo "exec hostapd_s1g $CONF"

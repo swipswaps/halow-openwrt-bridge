@@ -15,16 +15,12 @@ python3-distutils
 python3-setuptools
 gcc-multilib
 
-# Dev lint (host)
+# Dev lint and tooling (host)
 shellcheck
+curl             # fetch-license.sh downloads the verbatim GPL-2.0 text
 
 # OpenWrt target packages (install on the device)
 # iw
 # bridge-utils   (optional; ip link nomaster is preferred)
 # kmod           (provides modinfo)
 # findutils      (optional; BusyBox find lacks -printf)
-
-# Repository files
-# LICENSE        GPL-2.0
-# CHANGELOG.txt  change history
-# install.sh     one-command deployment helper

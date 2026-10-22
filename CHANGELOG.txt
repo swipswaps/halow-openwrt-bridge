@@ -1,30 +1,40 @@
 Wi-Fi HaLow OpenWrt Bridge - Change Log
 ========================================
 
+1.2.1  2026-10-22
+  Fix: hostapd_s1g.conf ships __CHANGEME__ instead of a real default
+       PSK.  start-ap.sh rejects CHANGEME/empty passphrases.  install.sh
+       chmod 600s the installed configuration.  README documents PSK
+       rotation for deployments that copied the previous placeholder.
+  Fix: android/set-global-mac.sh performs an interface rename
+       (usbN -> ethN) instead of relying on a MAC-bit change; the
+       previous reasoning was incorrect on mainline Linux.  README and
+       check-cdc-ncm.sh corrected with the usbnet_probe and
+       config_ethernet_iface_regex citations.
+  Fix: LICENSE replaced with an SPDX pointer plus fetch-license.sh; the
+       prior file was a paraphrase, not the verbatim GPL-2.0 text.
+  Fix: start-ap.sh refuses a second hostapd_s1g (exit 6) unless FORCE=1.
+  Fix: install.sh checks for /etc/rc.common, uci, and iw before writing.
+  Fix: disable-dhcp-halow.sh only restarts dnsmasq when its init script
+       exists.
+  Add: push.sh moves the lint gate into the repository; raw git push
+       bypasses it by design.
+  Add: fetch-license.sh, LICENSE pointer, .gitignore patterns for
+       *.local and LICENSE.tmp.
+  Docs: CDC-NCM citation changed from a Rust crate doc to the Linux
+        usbnet.c and AOSP config_ethernet_iface_regex sources.
+
 1.2.0  2026-10-22
-  Fix: uci-defaults-halow no longer disables every radioN at first boot.
-       On a multi-radio device that removed the management radio.
-  Fix: setup-relayd.sh SC2140 quoted assignment.
-  Fix: lint.sh SC2181; exit codes checked directly with if ! cmd.
-  Fix: lint.sh now includes install.sh in its target list.
-  Fix: lint.sh non-zero exit gates the push; LINT_OVERRIDE=1 bypasses.
-  Fix: start-ap.sh creates /var/run/hostapd before exec.
-  Fix: install.sh creates /var/run/hostapd, copies all operator scripts,
-       and documents the uci-defaults-halow opt-in.
-  Fix: start-ap.sh country guard rewritten as if .. then .. fi.
-  Docs: thermal warning hedged to datasheet verification instead of
-        asserting 85 C.
-  Add: .gitignore, CHANGELOG.txt.
+  Fix: lint.sh exit codes, install.sh in FILES, push gate on lint failure.
+  Fix: uci-defaults-halow no longer disables every radioN.
+  Fix: setup-relayd.sh SC2140, lint.sh SC2181.
+  Add: /var/run/hostapd creation in start-ap.sh and install.sh.
+  Docs: thermal hedged to datasheet; .gitignore, CHANGELOG.
 
 1.1.0  2026-10-22
-  Add: GPL-2.0 LICENSE.
-  Add: install.sh one-command deployment.
-  Add: set-global-mac.sh explicit root check.
-  Docs: GHSA/CVE-2026-7764 completeness.
-  Docs: relayd caveat (not a full Layer-2 bridge).
-  Docs: MM8108 thermal protection advisory.
+  Add: GPL-2.0 license file (later corrected), install.sh,
+       set-global-mac.sh root check.
+  Docs: GHSA completeness, relayd caveat, thermal warning.
 
 1.0.0  2026-10-21
   First stable release.
-  Regulatory tuple validation, UCI bridge/zone by name, procd foreground
-  hostapd, MM8108 workarounds, Android CDC-NCM diagnosis, lint harness.

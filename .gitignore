@@ -7,3 +7,7 @@
 *.rej
 *.log
 *.tmp
+
+# local config overrides (real PSKs must not be committed)
+*.local
+LICENSE.tmp

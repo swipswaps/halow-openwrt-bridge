@@ -19,20 +19,31 @@ Action: upgrade morse.ko and firmware to 2.11.12+ before deploying in any
 environment where radio-range attackers are in scope.
 Run `tune-morse.sh security` for the on-device reminder.
 
-2. THERMAL PROTECTION (MM8108)
+2. DEFAULT PSK AND ROTATION
+----------------------------
+
+Earlier revisions of this repository shipped
+wpa_passphrase=ChangeMe_HaLow_2026 as a placeholder.  That value is in
+git history and must be treated as public.  Any deployment that copied
+a hostapd_s1g.conf from history and left the passphrase unchanged must
+rotate the PSK on both AP and station before continuing.
+
+The current hostapd_s1g.conf ships wpa_passphrase=__CHANGEME__, and
+start-ap.sh rejects any passphrase that is empty or contains CHANGEME.
+install.sh chmod 600s the installed configuration.
+
+3. THERMAL PROTECTION (MM8108)
 -------------------------------
 
-The MM8108 on-chip PA delivers up to 26 dBm average power.  Over-temperature
-protection (OTP) disables the transmitter when the die exceeds the datasheet
-threshold.  Public summaries commonly cite approximately 85 C; the exact
-threshold, hysteresis and duration should be taken from the MM8108 datasheet
-for the specific silicon revision, not from this document.  Operating beyond
-the limit can cause an unstable state, permanent hardware failure, or link
-disconnection.  Ensure enclosure airflow and duty-cycle headroom, and avoid
-sustained 26 dBm operation in sealed enclosures.
+The MM8108 PA delivers up to 26 dBm average power.  Over-temperature
+protection disables the transmitter at the datasheet threshold.  Public
+summaries commonly cite approximately 85 C; verify against the MM8108
+datasheet for the specific silicon revision rather than this document.
+Ensure enclosure airflow and duty-cycle headroom; avoid sustained
+26 dBm operation in sealed enclosures.
 Run `tune-morse.sh thermal` for the on-device reminder.
 
-3. REGIONAL op_class TABLE
+4. REGIONAL op_class TABLE
 ----------------------------
 
   Region  width  op_class  channel start (GHz)
@@ -46,30 +57,26 @@ Run `tune-morse.sh thermal` for the on-device reminder.
   JP      2 MHz  69        0.902
 
 start-ap.sh validates the tuple and rejects mismatches with exit 5.
-An unknown region is refused unless ALLOW_UNKNOWN_REGION=1 is set; that
-override is the operator's regulatory responsibility.
 
-4. S1G CAPABILITY FLAGS
+5. S1G CAPABILITY FLAGS
 ------------------------
 
 s1g_capab accepts [SHORT-GI-1] through [SHORT-GI-16] and [SHORT-GI-ALL].
-[SHORT-GI-ALL] is the specification default and enables short GI for the
-configured bandwidth including sub-bandwidths.  This repository uses
-[SHORT-GI-ALL], matching the Gateworks example configurations.
-Source: MorseMicro/hostapd_s1g_configuration.md v1.14, lines 42-61.
+[SHORT-GI-ALL] is the specification default.
+Source: MorseMicro/hostapd_s1g_configuration.md v1.14.
 
-5. DISABLING UCI FOR THE HaLOW RADIO
+6. DISABLING UCI FOR THE HaLOW RADIO
 -------------------------------------
 
-disable-uci-halow.sh requires HALOW_RADIO (for example radio1).  It does not
-disable every radioN: on a multi-radio router that would remove the
-management radio and take the device off the network.  Run it as:
+disable-uci-halow.sh requires HALOW_RADIO (for example radio1).  It does
+not disable every radioN: on a multi-radio router that would remove the
+management radio.  Run it as:
     HALOW_RADIO=radio1 ./openwrt/disable-uci-halow.sh
 
-uci-defaults-halow does NOT disable any radioN; it only adds wlan0 to the
-br-lan ports list and to the lan firewall zone at first boot.
+uci-defaults-halow does not disable any radioN; it only seeds the br-lan
+port and lan firewall zone at first boot.
 
-6. RELAYD ALTERNATIVE (CAVEAT)
+7. RELAYD ALTERNATIVE (CAVEAT)
 ------------------------------
 
 setup-relayd.sh writes a modern relay interface:
@@ -77,15 +84,11 @@ setup-relayd.sh writes a modern relay interface:
     network.repeater_bridge.proto=relay
     network.repeater_bridge.ipaddr=192.168.4.1
     network.repeater_bridge.network='br-lan wlan0'
-Modern relayd reads ipaddr and the network list from the interface section.
-
 Caveat: relayd is not a full Layer-2 bridge.  DHCP, mDNS, and upstream
-throughput may not behave identically to a wired bridge, and relayd
-primarily handles IPv4.  When both ends are controllable, WDS or 802.11s is
-preferred over relayd.  Use the hard bridge (start-ap.sh + firewall-halow.sh)
-whenever a true Layer-2 segment is required.
+throughput may not match a wired bridge, and relayd is primarily IPv4.
+WDS or 802.11s is preferred when both ends are controllable.
 
-7. KNOWN LIMITATIONS (MM8108 RELEASE NOTES)
+8. KNOWN LIMITATIONS (MM8108 RELEASE NOTES)
 --------------------------------------------
 
   Symptom                                Action
@@ -98,51 +101,47 @@ whenever a true Layer-2 segment is required.
   TCP throughput ~10% below expectation  tune-morse.sh throughput
   Vendor IE OOB (CVE-2026-7764)          tune-morse.sh security
 
-8. PROCESS MODEL
+9. PROCESS MODEL
 ----------------
 
-start-ap.sh prepares the PHY, bridge port, and DHCP suppression, then execs
-hostapd_s1g in the foreground.  procd tracks the real hostapd PID.
-halow-ap.init uses respawn 3600 5 5 (threshold 3600 s, timeout 5 s, retry 5),
-so a permanent configuration error is retried five times and then left
-visible in logread instead of restarting forever.
+start-ap.sh execs hostapd_s1g in the foreground so procd tracks the
+real daemon.  halow-ap.init uses respawn 3600 5 5, so a permanent
+configuration error is retried five times and then left visible in
+logread.  start-ap.sh refuses to start a second hostapd_s1g when one
+is already running (exit 6); set FORCE=1 to stop and restart.
 
-9. ANDROID CDC-NCM
--------------------
+10. ANDROID CDC-NCM
+--------------------
 
-The kernel names CDC-NCM usbX when bit 1 of the first MAC octet is set
-(locally administered).  On many Android releases, notably before Android
-14 (U), the tethering configuration matches ethX only, so tethering does
-not enable.  Android 14 changed the regex to include usbX, then reverted it
-and re-landed it for Android 15 (V); vendor forks vary.  check-cdc-ncm.sh
-prints LOCAL_BIT and the set-global-mac.sh remediation command.
+Linux usbnet_probe() names cdc_ncm, cdc_ether, and rndis_host
+interfaces usbN (drivers/net/usb/usbnet.c).  Android's default
+config_ethernet_iface_regex matches ethN, so the Ethernet service
+ignores usbN and tethering does not enable.
+The fix is an explicit rename, not a MAC change:
+    ip link set dev usb0 down
+    ip link set dev usb0 name eth0
+    ip link set dev eth0 up
+set-global-mac.sh performs this rename (the filename is historical).
+It also clears the locally-administered MAC bit, which some vendor
+forks additionally filter on, but that bit does not rename the
+interface on stock Linux.
 
-10. LINT GATE
+11. LINT GATE
 --------------
 
-lint.sh runs sh -n and (when available) shellcheck -s sh -e SC2034 on every
-script.  A push script that calls lint.sh should treat a non-zero exit as
-fatal.  The canonical push pattern is:
+lint.sh runs sh -n and, when available, shellcheck -s sh -e SC2034 on
+every script.  push.sh runs lint.sh and aborts on failure unless
+LINT_OVERRIDE=1 is set.  Use push.sh rather than raw git push so the
+gate cannot be bypassed by habit.
 
-    sh lint.sh
-    LINT_RC=$?
-    if [ "$LINT_RC" -ne 0 ]; then
-        if [ "${LINT_OVERRIDE:-0}" != "1" ]; then
-            echo "lint failed; review before pushing."
-            exit 3
-        fi
-        echo "LINT_OVERRIDE=1; proceeding after lint failure."
-    fi
-
-The override exists for deliberate edge-case pushes; it should not be used
-to route around a red lint by default.
-
-11. LICENSE
+12. LICENSE
 ------------
 
-GNU General Public License v2.0.  See LICENSE.
+SPDX-License-Identifier: GPL-2.0-only.
+LICENSE is a pointer; run ./fetch-license.sh to populate it with the
+verbatim GPL-2.0 text before tagging or distributing.
 
-12. FILES
+13. FILES
 ----------
 
 README.txt
@@ -151,6 +150,8 @@ LICENSE
 requirements.txt
 .gitignore
 lint.sh
+push.sh
+fetch-license.sh
 install.sh
 openwrt/disable-uci-halow.sh
 openwrt/hostapd_s1g.conf
@@ -166,26 +167,32 @@ android/README-android.txt
 android/check-cdc-ncm.sh
 android/set-global-mac.sh
 
-13. REFERENCES
+14. REFERENCES
 --------------
 
 GHSA-7C7H-P74X-W3H5 (CVE-2026-7764):
 https://github.com/advisories/GHSA-7C7H-P74X-W3H5
 
+Linux usbnet_probe() interface naming:
+https://elixir.bootlin.com/linux/latest/source/drivers/net/usb/usbnet.c
+
+AOSP Ethernet interface regex (config_ethernet_iface_regex):
+https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/core/res/res/values/config.xml
+
 Morse Micro hostapd_s1g configuration specification:
 https://github.com/MorseMicro/hostap/blob/v1.14/hostapd_s1g_configuration.md
 
-Gateworks GW16167 wiki (channel mapping, UCI avoidance, firewall zone):
+Gateworks GW16167 wiki:
 https://trac.gateworks.com/wiki/expansion/gw16167
 
 OpenWrt procd respawn parameters:
 https://mintlify.wiki/openwrt/openwrt/system/procd
 
-OpenWrt relayd UCI schema (proto=relay, ipaddr, network list):
+OpenWrt relayd UCI schema:
 https://git.openwrt.org/?p=openwrt/openwrt.git;a=blob;f=package/network/services/relayd/files/relay.sh
 
-Android CDC-NCM locally-administered bit:
-https://docs.rs/embassy-usb/0.5.0/embassy_usb/class/cdc_ncm/
-
-IEEE 802.11-2024 Annex E, Table E-5 (global operating classes 66/67):
+IEEE 802.11-2024 Annex E, Table E-5:
 https://standards.ieee.org/ieee/802.11/10548/
+
+GPL-2.0 verbatim text:
+https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt

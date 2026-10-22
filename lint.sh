@@ -5,7 +5,7 @@
 # START, STOP, and USE_PROCD by indirection.
 
 RC=0
-FILES="openwrt/*.sh android/*.sh openwrt/uci-defaults-halow openwrt/halow-ap.init install.sh lint.sh"
+FILES="openwrt/*.sh android/*.sh openwrt/uci-defaults-halow openwrt/halow-ap.init install.sh lint.sh push.sh fetch-license.sh"
 
 for f in $FILES; do
     if ! sh -n "$f"; then
