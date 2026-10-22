@@ -13,8 +13,7 @@ which read at fixed offsets.  The length check only requires the IE to be
 longer than 3 bytes, so a crafted 802.11ah beacon or probe response can
 cause a heap out-of-bounds read of up to 9 bytes, disclosing kernel heap
 memory or causing a kernel oops/panic.
-CVSS 3.1 base score: 6.8.
-Fixed in HaLowLink 2 software 2.11.12 and later.
+CVSS 3.1 base score: 6.8.  Fixed in HaLowLink 2 software 2.11.12 and later.
 Advisory: https://github.com/advisories/GHSA-7C7H-P74X-W3H5
 Action: upgrade morse.ko and firmware to 2.11.12+ before deploying in any
 environment where radio-range attackers are in scope.
@@ -23,12 +22,15 @@ Run `tune-morse.sh security` for the on-device reminder.
 2. THERMAL PROTECTION (MM8108)
 -------------------------------
 
-The MM8108 on-chip PA delivers up to 26 dBm average power.  Once the chip
-reaches 85 C internally the transmitter is disabled to prevent permanent
-hardware damage.  Operating beyond this limit can cause an unstable state,
-permanent hardware failure, or link disconnection.  Ensure enclosure
-airflow and duty-cycle headroom, and avoid sustained 26 dBm operation in
-sealed enclosures.  Run `tune-morse.sh thermal` for the on-device reminder.
+The MM8108 on-chip PA delivers up to 26 dBm average power.  Over-temperature
+protection (OTP) disables the transmitter when the die exceeds the datasheet
+threshold.  Public summaries commonly cite approximately 85 C; the exact
+threshold, hysteresis and duration should be taken from the MM8108 datasheet
+for the specific silicon revision, not from this document.  Operating beyond
+the limit can cause an unstable state, permanent hardware failure, or link
+disconnection.  Ensure enclosure airflow and duty-cycle headroom, and avoid
+sustained 26 dBm operation in sealed enclosures.
+Run `tune-morse.sh thermal` for the on-device reminder.
 
 3. REGIONAL op_class TABLE
 ----------------------------
@@ -43,12 +45,9 @@ sealed enclosures.  Run `tune-morse.sh thermal` for the on-device reminder.
   JP      1 MHz  68        0.902
   JP      2 MHz  69        0.902
 
-EU 66/67 are confirmed in the Morse Micro community against IEEE
-802.11-2024 Annex E, Table E-5.  Using US 68/69 in an EU deployment causes
-hostapd_s1g to fail with "Invalid s1g config of oper class, country code
-and channel".  start-ap.sh validates the tuple and rejects mismatches with
-exit 5.  An unknown region is refused unless ALLOW_UNKNOWN_REGION=1 is set;
-that override is the operator's regulatory responsibility.
+start-ap.sh validates the tuple and rejects mismatches with exit 5.
+An unknown region is refused unless ALLOW_UNKNOWN_REGION=1 is set; that
+override is the operator's regulatory responsibility.
 
 4. S1G CAPABILITY FLAGS
 ------------------------
@@ -57,6 +56,7 @@ s1g_capab accepts [SHORT-GI-1] through [SHORT-GI-16] and [SHORT-GI-ALL].
 [SHORT-GI-ALL] is the specification default and enables short GI for the
 configured bandwidth including sub-bandwidths.  This repository uses
 [SHORT-GI-ALL], matching the Gateworks example configurations.
+Source: MorseMicro/hostapd_s1g_configuration.md v1.14, lines 42-61.
 
 5. DISABLING UCI FOR THE HaLOW RADIO
 -------------------------------------
@@ -66,13 +66,16 @@ disable every radioN: on a multi-radio router that would remove the
 management radio and take the device off the network.  Run it as:
     HALOW_RADIO=radio1 ./openwrt/disable-uci-halow.sh
 
+uci-defaults-halow does NOT disable any radioN; it only adds wlan0 to the
+br-lan ports list and to the lan firewall zone at first boot.
+
 6. RELAYD ALTERNATIVE (CAVEAT)
 ------------------------------
 
 setup-relayd.sh writes a modern relay interface:
     network.repeater_bridge=interface
-    network.repeater_bridge.proto='relay'
-    network.repeater_bridge.ipaddr='192.168.4.1'
+    network.repeater_bridge.proto=relay
+    network.repeater_bridge.ipaddr=192.168.4.1
     network.repeater_bridge.network='br-lan wlan0'
 Modern relayd reads ipaddr and the network list from the interface section.
 
@@ -91,7 +94,7 @@ whenever a true Layer-2 segment is required.
   Close range: association fails         tune-morse.sh close-range
   WDS downlink imbalance                 tune-morse.sh wds
   Kernel >6.2 airtime fairness off       tune-morse.sh airtime
-  Thermal shutdown at 85 C               tune-morse.sh thermal
+  Thermal shutdown near datasheet OTP    tune-morse.sh thermal
   TCP throughput ~10% below expectation  tune-morse.sh throughput
   Vendor IE OOB (CVE-2026-7764)          tune-morse.sh security
 
@@ -114,19 +117,39 @@ not enable.  Android 14 changed the regex to include usbX, then reverted it
 and re-landed it for Android 15 (V); vendor forks vary.  check-cdc-ncm.sh
 prints LOCAL_BIT and the set-global-mac.sh remediation command.
 
-10. LICENSE
+10. LINT GATE
+--------------
+
+lint.sh runs sh -n and (when available) shellcheck -s sh -e SC2034 on every
+script.  A push script that calls lint.sh should treat a non-zero exit as
+fatal.  The canonical push pattern is:
+
+    sh lint.sh
+    LINT_RC=$?
+    if [ "$LINT_RC" -ne 0 ]; then
+        if [ "${LINT_OVERRIDE:-0}" != "1" ]; then
+            echo "lint failed; review before pushing."
+            exit 3
+        fi
+        echo "LINT_OVERRIDE=1; proceeding after lint failure."
+    fi
+
+The override exists for deliberate edge-case pushes; it should not be used
+to route around a red lint by default.
+
+11. LICENSE
 ------------
 
-This repository is distributed under the GNU General Public License v2.0.
-See LICENSE.  It is compatible with the OpenWrt and Morse Micro hostapd
-licensing model.
+GNU General Public License v2.0.  See LICENSE.
 
-11. FILES
+12. FILES
 ----------
 
 README.txt
+CHANGELOG.txt
 LICENSE
 requirements.txt
+.gitignore
 lint.sh
 install.sh
 openwrt/disable-uci-halow.sh
@@ -143,7 +166,7 @@ android/README-android.txt
 android/check-cdc-ncm.sh
 android/set-global-mac.sh
 
-12. REFERENCES
+13. REFERENCES
 --------------
 
 GHSA-7C7H-P74X-W3H5 (CVE-2026-7764):

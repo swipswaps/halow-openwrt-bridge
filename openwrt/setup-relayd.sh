@@ -17,10 +17,10 @@ if ! command -v relayd >/dev/null 2>&1; then
     fi
 fi
 
-uci set network."$RELAY_IF"=interface
-uci set network."$RELAY_IF".proto='relay'
-uci set network."$RELAY_IF".ipaddr='192.168.4.1'
-uci set network."$RELAY_IF".network="$UPSTREAM_IF $HALOW_IF"
+uci set "network.$RELAY_IF=interface"
+uci set "network.$RELAY_IF.proto=relay"
+uci set "network.$RELAY_IF.ipaddr=192.168.4.1"
+uci set "network.$RELAY_IF.network=$UPSTREAM_IF $HALOW_IF"
 
 uci commit network
 /etc/init.d/relayd enable

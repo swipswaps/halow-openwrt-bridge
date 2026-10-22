@@ -1,0 +1,30 @@
+Wi-Fi HaLow OpenWrt Bridge - Change Log
+========================================
+
+1.2.0  2026-10-22
+  Fix: uci-defaults-halow no longer disables every radioN at first boot.
+       On a multi-radio device that removed the management radio.
+  Fix: setup-relayd.sh SC2140 quoted assignment.
+  Fix: lint.sh SC2181; exit codes checked directly with if ! cmd.
+  Fix: lint.sh now includes install.sh in its target list.
+  Fix: lint.sh non-zero exit gates the push; LINT_OVERRIDE=1 bypasses.
+  Fix: start-ap.sh creates /var/run/hostapd before exec.
+  Fix: install.sh creates /var/run/hostapd, copies all operator scripts,
+       and documents the uci-defaults-halow opt-in.
+  Fix: start-ap.sh country guard rewritten as if .. then .. fi.
+  Docs: thermal warning hedged to datasheet verification instead of
+        asserting 85 C.
+  Add: .gitignore, CHANGELOG.txt.
+
+1.1.0  2026-10-22
+  Add: GPL-2.0 LICENSE.
+  Add: install.sh one-command deployment.
+  Add: set-global-mac.sh explicit root check.
+  Docs: GHSA/CVE-2026-7764 completeness.
+  Docs: relayd caveat (not a full Layer-2 bridge).
+  Docs: MM8108 thermal protection advisory.
+
+1.0.0  2026-10-21
+  First stable release.
+  Regulatory tuple validation, UCI bridge/zone by name, procd foreground
+  hostapd, MM8108 workarounds, Android CDC-NCM diagnosis, lint harness.

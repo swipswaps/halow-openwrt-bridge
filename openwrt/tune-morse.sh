@@ -23,10 +23,10 @@ case "$ACTION" in
         echo "morse_vendor_find_vendor_ie() does not validate the IE length"
         echo "against the expected structure size before passing the result"
         echo "to morse_vendor_rx_caps_ops_ie() and morse_vendor_fill_sta_vendor_info(),"
-        echo "which read at fixed offsets.  Because the check only requires the"
-        echo "IE to be longer than 3 bytes, a crafted 802.11ah beacon or probe"
-        echo "response can cause a heap out-of-bounds read of up to 9 bytes,"
-        echo "disclosing kernel heap memory or causing a kernel oops/panic."
+        echo "which read at fixed offsets.  The length check only requires the"
+        echo "IE to be longer than 3 bytes, so a crafted 802.11ah beacon or"
+        echo "probe response can cause a heap out-of-bounds read of up to 9"
+        echo "bytes, disclosing kernel heap memory or causing a kernel oops."
         echo "CVSS 3.1 base score: 6.8."
         echo "Fixed in HaLowLink 2 software 2.11.12 and later."
         echo "Advisory: https://github.com/advisories/GHSA-7C7H-P74X-W3H5"
@@ -58,12 +58,12 @@ case "$ACTION" in
         ;;
     thermal)
         echo "MM8108 thermal protection: the on-chip PA delivers up to 26 dBm."
-        echo "Once the chip reaches 85 C internally the transmitter is disabled"
-        echo "to prevent permanent hardware damage.  Operating beyond this limit"
-        echo "can cause an unstable state or permanent link loss."
-        echo "Action: ensure enclosure airflow and duty-cycle headroom; monitor"
-        echo "die temperature if the driver exposes it, and avoid sustained"
-        echo "26 dBm operation in sealed enclosures."
+        echo "Over-temperature protection (OTP) disables the transmitter when"
+        echo "the die exceeds the datasheet threshold.  Public summaries"
+        echo "commonly cite ~85 C; consult the MM8108 datasheet for the"
+        echo "threshold and duration of the specific silicon revision."
+        echo "Action: ensure enclosure airflow and duty-cycle headroom; avoid"
+        echo "sustained 26 dBm operation in sealed enclosures."
         ;;
     throughput)
         echo "MM6108/MM8108 TCP throughput is ~10% below expectation."

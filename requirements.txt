@@ -26,4 +26,5 @@ shellcheck
 
 # Repository files
 # LICENSE        GPL-2.0
+# CHANGELOG.txt  change history
 # install.sh     one-command deployment helper

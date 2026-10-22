@@ -21,7 +21,10 @@ COUNTRY=$(awk -F= '/^country_code=/ {print $2}' "$CONF" 2>&1)
 CHWIDTH=$(awk -F= '/^s1g_prim_chwidth=/ {print $2}' "$CONF" 2>&1)
 OPCLASS=$(awk -F= '/^op_class=/ {print $2}' "$CONF" 2>&1)
 
-[ -z "$COUNTRY" ] && { echo "country_code is mandatory."; exit 5; }
+if [ -z "$COUNTRY" ]; then
+    echo "country_code is mandatory."
+    exit 5
+fi
 
 case "$COUNTRY" in
     US|AU|JP) ALLOWED="0:68 1:69" ;;
@@ -33,8 +36,8 @@ case "$COUNTRY" in
         else
             echo "Unknown region $COUNTRY."
             echo "Set ALLOW_UNKNOWN_REGION=1 if $CHWIDTH:$OPCLASS is correct"
-            echo "for your regulator.  EU uses 0:66 / 1:67; US/AU/JP use"
-            echo "0:68 / 1:69.  Source: IEEE 802.11-2020 Annex E, Table E-5."
+            echo "for your regulator.  EU 1 MHz=66 2 MHz=67; US/AU/JP 1 MHz=68 2 MHz=69."
+            echo "Source: IEEE 802.11-2020 Annex E, Table E-5."
             exit 5
         fi
         ;;
@@ -46,7 +49,6 @@ for pair in $ALLOWED; do
 done
 if [ "$MATCH" -eq 0 ]; then
     echo "tuple $COUNTRY/$CHWIDTH/$OPCLASS is not in [$ALLOWED]."
-    echo "EU 1 MHz=66 2 MHz=67; US/AU/JP 1 MHz=68 2 MHz=69."
     exit 5
 fi
 echo "regulatory tuple: $COUNTRY/$CHWIDTH/$OPCLASS"
@@ -106,6 +108,9 @@ for section in $(uci show dhcp 2>&1 | awk -F. '/=dhcp$/ {print $2}'); do
     fi
 done
 [ "$CHANGED" -eq 1 ] && uci commit dhcp
+
+# --- hostapd control socket directory -------------------------------------
+mkdir -p /var/run/hostapd
 
 echo "exec hostapd_s1g $CONF"
 exec hostapd_s1g "$CONF"

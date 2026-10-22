@@ -1,33 +1,45 @@
 #!/bin/sh
-# First-boot seed.  Copy to /etc/uci-defaults/99-halow.
+# First-boot seed for the HaLow bridge.  Copy to /etc/uci-defaults/99-halow.
+# procd executes this once and deletes it on success.
+#
+# It does NOT disable any radioN.  On a multi-radio device that would
+# remove the management radio at first boot.  Run disable-uci-halow.sh
+# with HALOW_RADIO=radioN after boot to disable the specific HaLow radio.
 
 HALOW_IF=wlan0
 
-for section in $(uci show wireless 2>&1 | awk -F. '/\.radio[0-9]+=/ {print $2}'); do
-    uci set "wireless.$section.disabled='1'"
+# Add wlan0 to the bridge device section named br-lan.
+BRIDGE_SECTION=""
+for section in $(uci show network 2>&1 | awk -F. '/=device$/ {print $2}'); do
+    NAME=$(uci get "network.$section.name" 2>&1)
+    [ "$NAME" = "br-lan" ] && BRIDGE_SECTION="$section"
 done
-
-PORTS_FOUND=0
-for port in $(uci get network.@device[-1].ports 2>&1); do
-    if [ "$port" = "$HALOW_IF" ]; then
-        PORTS_FOUND=1
+if [ -n "$BRIDGE_SECTION" ]; then
+    PORTS_FOUND=0
+    for port in $(uci get "network.$BRIDGE_SECTION.ports" 2>&1); do
+        [ "$port" = "$HALOW_IF" ] && PORTS_FOUND=1
+    done
+    if [ "$PORTS_FOUND" -eq 0 ]; then
+        uci add_list "network.$BRIDGE_SECTION.ports=$HALOW_IF"
     fi
-done
-if [ "$PORTS_FOUND" -eq 0 ] && uci get network.@device[-1] >/dev/null 2>&1; then
-    uci add_list network.@device[-1].ports="$HALOW_IF"
 fi
 
-FW_FOUND=0
-for net in $(uci get firewall.@zone[0].network 2>&1); do
-    if [ "$net" = "$HALOW_IF" ]; then
-        FW_FOUND=1
-    fi
+# Add wlan0 to the firewall zone named lan.
+ZONE_SECTION=""
+for section in $(uci show firewall 2>&1 | awk -F. '/=zone$/ {print $2}'); do
+    NAME=$(uci get "firewall.$section.name" 2>&1)
+    [ "$NAME" = "lan" ] && ZONE_SECTION="$section"
 done
-if [ "$FW_FOUND" -eq 0 ]; then
-    uci add_list firewall.@zone[0].network="$HALOW_IF"
+if [ -n "$ZONE_SECTION" ]; then
+    FW_FOUND=0
+    for net in $(uci get "firewall.$ZONE_SECTION.network" 2>&1); do
+        [ "$net" = "$HALOW_IF" ] && FW_FOUND=1
+    done
+    if [ "$FW_FOUND" -eq 0 ]; then
+        uci add_list "firewall.$ZONE_SECTION.network=$HALOW_IF"
+    fi
 fi
 
-uci commit wireless
 uci commit network
 uci commit firewall
 exit 0
