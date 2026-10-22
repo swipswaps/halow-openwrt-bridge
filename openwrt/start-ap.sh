@@ -1,7 +1,7 @@
 #!/bin/sh
 # Start HaLow AP.  Execs hostapd_s1g in the foreground so procd tracks
-# the real daemon.  Exit codes: 0 unreachable (exec replaces the shell),
-# 2 no PHY, 3 bridge missing, 4 setup failed, 5 regulatory tuple invalid.
+# the real daemon.  Exit codes: 0 unreachable (exec replaces shell),
+# 2 no PHY, 3 bridge missing, 4 setup failed, 5 regulatory invalid.
 
 HALOW_IF=wlan0
 BRIDGE=br-lan
@@ -15,19 +15,22 @@ OPCLASS=$(awk -F= '/^op_class=/ {print $2}' "$CONF" 2>&1)
 [ -z "$COUNTRY" ] && { echo "country_code is mandatory."; exit 5; }
 
 case "$COUNTRY:$CHWIDTH:$OPCLASS" in
-    US:0:68|US:1:69|EU:0:66|EU:1:67|AU:0:68|AU:1:69|JP:0:68|JP:1:69) : ;;
-    *) echo "regulatory tuple invalid: $COUNTRY/$CHWIDTH/$OPCLASS"
-       echo "US 0->68 1->69 | EU 0->66 1->67 | AU 0->68 1->69 | JP 0->68 1->69"
-       echo "Source: IEEE 802.11-2024 Annex E, Table E-5."
-       exit 5 ;;
+    US:0:68|US:1:69|AU:0:68|AU:1:69|JP:0:68|JP:1:69) : ;;
+    EU:0:66|EU:1:67) : ;;
+    *)
+        echo "regulatory tuple invalid: $COUNTRY/$CHWIDTH/$OPCLASS"
+        echo "US 0->68 1->69 | EU 0->66 1->67 | AU 0->68 1->69 | JP 0->68 1->69"
+        echo "Source: IEEE 802.11-2024 Annex E, Table E-5."
+        exit 5
+        ;;
 esac
 echo "regulatory tuple: $COUNTRY/$CHWIDTH/$OPCLASS"
 
 # --- hostapd presence -----------------------------------------------------
-if ! command -v hostapd_s1g >/dev/null 2>&1; then
+command -v hostapd_s1g >/dev/null 2>&1 || {
     echo "hostapd_s1g not found.  Install CONFIG_PACKAGE_hostapd_s1g."
     exit 4
-fi
+}
 
 # --- PHY discovery (BusyBox-safe: no find -printf, no ls) -----------------
 if ! iw dev "$HALOW_IF" info >/dev/null 2>&1; then
@@ -52,7 +55,7 @@ fi
 
 ip link set "$HALOW_IF" up || exit 4
 
-# --- bridge membership (before exec, so failure aborts cleanly) -----------
+# --- bridge membership ----------------------------------------------------
 if ip link show "$BRIDGE" >/dev/null 2>&1; then
     FOUND=0
     for port in $(uci get network.@device[-1].ports 2>&1); do
