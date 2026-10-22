@@ -4,47 +4,26 @@ Android Endpoint Connection
 Path A: MM8108-RD17 (driverless CDC-NCM)
 -----------------------------------------
 
-1. Plug the RD17 into USB-C (OTG).
-2. It appears as a wired Ethernet interface.  Depending on the MAC
-   address, the interface may be named usbX or ethX.
-3. Android should obtain an IP from the upstream LAN DHCP.
-4. No DHCP server runs on the HaLow link itself.
+If the interface is usbX and tethering does not enable:
 
-Interface naming caveat:
-Android chooses usbX when the MAC address has the locally-administered
-bit set (bit 1 of the first octet).  A globally assigned MAC makes the
-interface appear as ethX, which the Android Ethernet service handles
-more reliably.  Run ./check-cdc-ncm.sh and inspect first_octet.
+    ./check-cdc-ncm.sh
+    # if LOCAL_BIT=1:
+    ./set-global-mac.sh usb0
+    # interface should rename to eth0; tethering becomes available
 
-If the interface appears but no IP is assigned:
-    dumpsys ethernet
-    settings get global tether_enable
-
+The change is lost on replug.  For persistence, add a udev rule:
+    ACTION=="add", SUBSYSTEM=="net", KERNEL=="usb0", \
+      RUN+="/sbin/ip link set %k address <global-mac>"
 
 Path B: MM8108-RD09 (native driver)
 ------------------------------------
 
-1. Build the Morse Micro driver against the device kernel headers.
-2. insmod morse.ko country=US
-3. wpa_supplicant_s1g -i wlan0 -c /path/to/wpa_supplicant_s1g.conf
+STA profile includes proto=RSN, pairwise=CCMP, ieee80211w=2.
 
-Minimal STA profile (WPA2-PSK):
+Known MM8108 behaviour (release notes 2.11.12):
+  - 1 MHz strong signal: receive degradation.
+  - 2 MHz near -73 dBm: receive degradation.
+  - Very close range: intermittent association failure.
 
-    country=US
-    ctrl_interface=/var/run/wpa_supplicant_s1g
-    proto=RSN
-    pairwise=CCMP
-    ieee80211w=2
-    network={
-        ssid="HaLow-Bridge"
-        psk="ChangeMe_HaLow_2026"
-        key_mgmt=WPA-PSK
-    }
-
-
-Known MM8108 behaviour (from Morse Micro release notes)
---------------------------------------------------------
-
-- 1 MHz at strong signal: receive degradation.
-- 2 MHz near -73 dBm RSSI: receive degradation.
-- Very close range: intermittent STA association failure.
+If throughput collapses at close range, reduce bandwidth to 1 MHz
+before suspecting hostapd.  See openwrt/tune-morse.sh.

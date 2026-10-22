@@ -1,21 +1,33 @@
 #!/bin/sh
-# First-boot seed for HaLow.  Copy to /etc/uci-defaults/99-halow.
-# procd executes this once and deletes it on success.
+# First-boot seed.  Copy to /etc/uci-defaults/99-halow.
 
 HALOW_IF=wlan0
 
-for radio_section in $(uci show wireless 2>&1 | awk -F. '/\.radio[0-9]+=/ {print $2}'); do
-    uci set "wireless.$radio_section.disabled='1'"
+for section in $(uci show wireless 2>&1 | awk -F. '/\.radio[0-9]+=/ {print $2}'); do
+    uci set "wireless.$section.disabled='1'"
 done
 
-if uci get network.@device[-1] >/dev/null 2>&1; then
+PORTS_FOUND=0
+for port in $(uci get network.@device[-1].ports 2>&1); do
+    if [ "$port" = "$HALOW_IF" ]; then
+        PORTS_FOUND=1
+    fi
+done
+if [ "$PORTS_FOUND" -eq 0 ] && uci get network.@device[-1] >/dev/null 2>&1; then
     uci add_list network.@device[-1].ports="$HALOW_IF"
 fi
 
-uci add_list firewall.@zone[0].network="$HALOW_IF"
+FW_FOUND=0
+for net in $(uci get firewall.@zone[0].network 2>&1); do
+    if [ "$net" = "$HALOW_IF" ]; then
+        FW_FOUND=1
+    fi
+done
+if [ "$FW_FOUND" -eq 0 ]; then
+    uci add_list firewall.@zone[0].network="$HALOW_IF"
+fi
 
 uci commit wireless
 uci commit network
 uci commit firewall
-
 exit 0

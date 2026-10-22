@@ -1,59 +1,57 @@
 Wi-Fi HaLow (Sub-1 GHz) OpenWrt Bridge + Android Endpoint
 =========================================================
 
-1. KNOWN FAILURE MODES (READ THIS FIRST)
------------------------------------------
-
-A. WiFi interfaces do not appear in /sys/class/net in OpenWrt.
-   Gateworks states this explicitly.  Any script that checks
-   /sys/class/net/wlan0 or /sys/class/net/br-lan will silently take
-   the failure branch.  This repository uses iw dev and ip link show
-   instead.
-
-B. procd will mark a daemonised hostapd_s1g as a crash loop.
-   When start-ap.sh runs "hostapd_s1g -B", the tracked shell exits
-   immediately.  procd sees a fast exit and, after the retry
-   threshold, refuses to restart the service.  OpenWrt's own hostapd
-   init uses "respawn 3600 1 0" for this reason.  halow-ap.init now
-   uses the same respawn settings and wraps the start script in
-   "sleep infinity" so procd tracks a long-lived process.
-
-C. Android Ethernet tethering does NOT enable when the CDC-NCM MAC
-   has the locally-administered bit set (bit 1 of the first octet).
-   The interface is named usbX instead of ethX, and Android's
-   Ethernet service ignores it.  check-cdc-ncm.sh now prints
-   LOCAL_BIT for each interface and warns explicitly.
-
-D. The OpenWrt firewall blocks all traffic on wlan0 until the
-   interface is assigned to a zone.  Without firewall-halow.sh
-   succeeding, DHCP and ARP are silently dropped.
-
-E. hw_mode=a is 5 GHz.  For S1G, hw_mode=ah is required by the
-   upstream RFC and the hostapd source.  The shipped file now uses
-   hw_mode=ah.
-
-
-2. MANDATORY S1G PARAMETERS
+1. RESIDUAL FAILURE CLASSES
 ----------------------------
 
-hw_mode=ah, ieee80211ah=1.
-op_class is mandatory and must match channel and s1g_prim_chwidth.
-US 1 MHz: channel=33, op_class=68.
-US 2 MHz: channel=10, op_class=69, s1g_prim_chwidth=1.
-s1g_prim_chwidth=0 is 1 MHz; 1 is 2 MHz.
+A. Regulatory tuple mismatch.
+   s1g_prim_chwidth, op_class, and channel must agree.
+   1 MHz (chwidth=0) pairs with op_class 67/68.
+   2 MHz (chwidth=1) pairs with op_class 69/70/71.
+   start-ap.sh now rejects mismatches with exit 5 before hostapd runs.
+   Source: hostapd_s1g_configuration.md v1.14 (Morse Micro).
+
+B. MM8108 receive degradation.
+   Documented in Morse Micro OpenWrt release notes 2.11.12:
+     - 2 MHz near -73 dBm RSSI: receive degradation.
+     - 1 MHz at strong signals: receive degradation.
+     - Very close range: intermittent STA association failure.
+   Workaround path is tune-morse.sh:
+     bandwidth 1      reduce from 2 MHz to 1 MHz (recommended first).
+     mcs N            opt-in fixed MCS; warn about packet loss.
+     rssi-offset      not a module parameter; use physical attenuation.
+   Forcing MCS is not the default because the community reports
+   increased packet loss when the rate is wrong for the channel.
+
+C. Android CDC-NCM MAC bit.
+   Android assigns usbX (not ethX) when the locally-administered bit
+   is set, and the Ethernet tethering option then does not enable.
+   check-cdc-ncm.sh reports LOCAL_BIT.
+   set-global-mac.sh clears bit 1 of the first octet and renames the
+   interface to ethX.  The change is not persistent across replug;
+   add a udev rule if persistence is required.
+
+D. UCI list duplication.
+   start-ap.sh and firewall-halow.sh now token-match the interface
+   name so repeated runs do not append a second entry.  uci-defaults
+   applies the same guard.  A duplicate port survives netifd but
+   breaks stop-ap.sh's del_list (which removes one instance only).
 
 
-3. MM8108 HARDWARE LIMITATIONS
--------------------------------
+2. WHAT THIS VERSION FIXES
+---------------------------
 
-From Morse Micro OpenWrt release notes:
-  - Receive degradation at 2 MHz near -73 dBm RSSI.
-  - Receive degradation at 1 MHz under strong signals.
-  - Power saving disabled for USB radios.
-  - MM8108 does not yet have full feature parity with MM6108.
+start-ap.sh:   regulatory tuple validation, exact port match,
+               hostapd exit code propagated.
+firewall-halow.sh: token-wise dedup.
+uci-defaults-halow: guards on both lists.
+tune-morse.sh: new; bandwidth-first MM8108 workaround.
+set-global-mac.sh: new; CDC-NCM MAC remediation.
+README.txt:    this section.
+android/README-android.txt: remediation commands.
 
 
-4. FILES
+3. FILES
 ---------
 
 README.txt
@@ -67,44 +65,22 @@ openwrt/setup-relayd.sh
 openwrt/disable-dhcp-halow.sh
 openwrt/uci-defaults-halow
 openwrt/halow-ap.init
+openwrt/tune-morse.sh
 android/README-android.txt
 android/check-cdc-ncm.sh
+android/set-global-mac.sh
 
 
-5. HOW TO USE
+4. REFERENCES
 -------------
 
-Manual:
-  ./openwrt/disable-uci-halow.sh
-  edit openwrt/hostapd_s1g.conf (country_code, channel, op_class)
-  ./openwrt/start-ap.sh
-  ./openwrt/firewall-halow.sh
-  ./openwrt/disable-dhcp-halow.sh
+Morse Micro hostapd_s1g configuration specification:
+https://github.com/MorseMicro/hostap/blob/v1.14/hostapd_s1g_configuration.md
 
-Persistence:
-  copy uci-defaults-halow to /etc/uci-defaults/99-halow
-  install halow-ap.init as /etc/init.d/halow-ap
-  copy start-ap.sh and stop-ap.sh to /usr/share/halow/
-  /etc/init.d/halow-ap enable
-
-
-6. REFERENCES
--------------
-
-Gateworks GW16167 wiki: WiFi interfaces do not appear in /sys/class/net;
-avoid UCI for HaLow.
-https://trac.gateworks.com/wiki/expansion/gw16167
-
-OpenWrt hostapd respawn settings (respawn 3600 1 0):
-https://git.openwrt.org/openwrt/staging/chunkeey/commit/?id=ceb612e463fc0dc6fbd7be66dc1a244544213c24
+Morse Micro OpenWrt release notes 2.11.12 (MM8108 known issues):
+https://www.morsemicro.com/zh-hans/download/openwrt-software-release-notes/
 
 Android CDC-NCM locally-administered MAC bit:
-https://docs.rs/embassy-usb/0.5.1/embassy_usb/class/cdc_ncm/
-
-Upstream S1G RFC (hw_mode=ah):
-https://patchwork.ozlabs.org/project/hostap/patch/20260528063857.950556-5-lachlan.hodges@morsemicro.com/
-
-Morse Micro OpenWrt release notes (MM8108 known issues):
-https://www.morsemicro.com/zh-hans/download/openwrt-2-8-5-software-release-note/
+https://docs.rs/embassy-usb/0.5.0/embassy_usb/class/cdc_ncm/
 
 IEEE 802.11ah-2016, ISBN 978-1-5044-3911-4.
