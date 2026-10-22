@@ -1,38 +1,57 @@
 #!/bin/sh
 # Start HaLow AP.  Execs hostapd_s1g in the foreground so procd tracks
-# the real daemon.  Exit codes: 0 unreachable (exec replaces shell),
-# 2 no PHY, 3 bridge missing, 4 setup failed, 5 regulatory invalid.
+# the real daemon.
+# Exit codes: 0 unreachable (exec replaces shell), 2 no PHY,
+# 3 bridge missing, 4 setup failed, 5 regulatory tuple invalid.
 
 HALOW_IF=wlan0
 BRIDGE=br-lan
 CONF="$(dirname "$0")/hostapd_s1g.conf"
 
-# --- regulatory tuple ------------------------------------------------------
+# --- required tools -------------------------------------------------------
+for tool in iw hostapd_s1g; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "$tool not found.  Install the matching OpenWrt package."
+        exit 4
+    fi
+done
+
+# --- regulatory tuple -----------------------------------------------------
 COUNTRY=$(awk -F= '/^country_code=/ {print $2}' "$CONF" 2>&1)
 CHWIDTH=$(awk -F= '/^s1g_prim_chwidth=/ {print $2}' "$CONF" 2>&1)
 OPCLASS=$(awk -F= '/^op_class=/ {print $2}' "$CONF" 2>&1)
 
 [ -z "$COUNTRY" ] && { echo "country_code is mandatory."; exit 5; }
 
-case "$COUNTRY:$CHWIDTH:$OPCLASS" in
-    US:0:68|US:1:69|AU:0:68|AU:1:69|JP:0:68|JP:1:69) : ;;
-    EU:0:66|EU:1:67) : ;;
+case "$COUNTRY" in
+    US|AU|JP) ALLOWED="0:68 1:69" ;;
+    EU)       ALLOWED="0:66 1:67" ;;
     *)
-        echo "regulatory tuple invalid: $COUNTRY/$CHWIDTH/$OPCLASS"
-        echo "US 0->68 1->69 | EU 0->66 1->67 | AU 0->68 1->69 | JP 0->68 1->69"
-        echo "Source: IEEE 802.11-2024 Annex E, Table E-5."
-        exit 5
+        if [ "${ALLOW_UNKNOWN_REGION:-0}" = "1" ]; then
+            ALLOWED="$CHWIDTH:$OPCLASS"
+            echo "WARNING: unknown region $COUNTRY allowed by ALLOW_UNKNOWN_REGION=1"
+        else
+            echo "Unknown region $COUNTRY."
+            echo "Set ALLOW_UNKNOWN_REGION=1 if $CHWIDTH:$OPCLASS is correct"
+            echo "for your regulator.  EU uses 0:66 / 1:67; US/AU/JP use"
+            echo "0:68 / 1:69.  Source: IEEE 802.11-2020 Annex E, Table E-5."
+            exit 5
+        fi
         ;;
 esac
+
+MATCH=0
+for pair in $ALLOWED; do
+    [ "$pair" = "$CHWIDTH:$OPCLASS" ] && MATCH=1
+done
+if [ "$MATCH" -eq 0 ]; then
+    echo "tuple $COUNTRY/$CHWIDTH/$OPCLASS is not in [$ALLOWED]."
+    echo "EU 1 MHz=66 2 MHz=67; US/AU/JP 1 MHz=68 2 MHz=69."
+    exit 5
+fi
 echo "regulatory tuple: $COUNTRY/$CHWIDTH/$OPCLASS"
 
-# --- hostapd presence -----------------------------------------------------
-command -v hostapd_s1g >/dev/null 2>&1 || {
-    echo "hostapd_s1g not found.  Install CONFIG_PACKAGE_hostapd_s1g."
-    exit 4
-}
-
-# --- PHY discovery (BusyBox-safe: no find -printf, no ls) -----------------
+# --- PHY discovery (BusyBox-safe) -----------------------------------------
 if ! iw dev "$HALOW_IF" info >/dev/null 2>&1; then
     PHY=""
     for phy_path in /sys/class/ieee80211/*; do
@@ -55,30 +74,38 @@ fi
 
 ip link set "$HALOW_IF" up || exit 4
 
-# --- bridge membership ----------------------------------------------------
-if ip link show "$BRIDGE" >/dev/null 2>&1; then
-    FOUND=0
-    for port in $(uci get network.@device[-1].ports 2>&1); do
-        [ "$port" = "$HALOW_IF" ] && FOUND=1
-    done
-    if [ "$FOUND" -eq 0 ]; then
-        uci add_list network.@device[-1].ports="$HALOW_IF" || exit 4
-        uci commit network
-        /etc/init.d/network reload
-    fi
-else
-    echo "Bridge $BRIDGE not found.  Use setup-relayd.sh."
+# --- resolve the br-lan device section by name ----------------------------
+BRIDGE_SECTION=""
+for section in $(uci show network 2>&1 | awk -F. '/=device$/ {print $2}'); do
+    NAME=$(uci get "network.$section.name" 2>&1)
+    [ "$NAME" = "$BRIDGE" ] && BRIDGE_SECTION="$section"
+done
+
+if [ -z "$BRIDGE_SECTION" ]; then
+    echo "Bridge $BRIDGE has no device section.  Use setup-relayd.sh."
     exit 3
 fi
 
-# --- DHCP suppression -----------------------------------------------------
+FOUND=0
+for port in $(uci get "network.$BRIDGE_SECTION.ports" 2>&1); do
+    [ "$port" = "$HALOW_IF" ] && FOUND=1
+done
+if [ "$FOUND" -eq 0 ]; then
+    uci add_list "network.$BRIDGE_SECTION.ports=$HALOW_IF" || exit 4
+    uci commit network
+    /etc/init.d/network reload
+fi
+
+# --- DHCP suppression, one commit -----------------------------------------
+CHANGED=0
 for section in $(uci show dhcp 2>&1 | awk -F. '/=dhcp$/ {print $2}'); do
     IFACE=$(uci get "dhcp.$section.interface" 2>&1)
     if [ "$IFACE" = "$HALOW_IF" ]; then
-        uci set "dhcp.$section.ignore='1'" && uci commit dhcp
+        uci set "dhcp.$section.ignore='1'"
+        CHANGED=1
     fi
 done
+[ "$CHANGED" -eq 1 ] && uci commit dhcp
 
-# --- exec hostapd in foreground (procd tracks this PID) -------------------
 echo "exec hostapd_s1g $CONF"
 exec hostapd_s1g "$CONF"

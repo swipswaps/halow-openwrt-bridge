@@ -1,37 +1,68 @@
 Wi-Fi HaLow (Sub-1 GHz) OpenWrt Bridge + Android Endpoint
 =========================================================
 
-1. SECURITY ADVISORY (MANDATORY READING)
------------------------------------------
+1. SECURITY ADVISORY (MANDATORY)
+---------------------------------
 
 CVE-2026-7764: out-of-bounds read in morse.ko Vendor IE processing.
-An unauthenticated attacker within radio range can leak kernel heap
-memory or cause a denial of service via a crafted 802.11ah beacon or
-probe response containing a malformed Vendor Information Element.
-Fixed in Morse Micro HaLowLink 2 software 2.11.12 and later.
-Advisory: https://www.morsemicro.com/security/advisories/mm-sa-2026-003/
-Action: upgrade the morse driver and firmware to 2.11.12+ before
-deploying in any environment where radio-range attackers are in scope.
-Run `tune-morse.sh security` for the on-device reminder.
+An unauthenticated attacker within radio range can disclose up to 9
+bytes of kernel heap or cause a kernel panic via a malformed 802.11ah
+beacon or probe response.  CVSS 3.1 base score 6.8.  Fixed in
+HaLowLink 2 software 2.11.12 and later.
+Advisory: https://app.opencve.io/cve/CVE-2026-7764
+Action: upgrade morse.ko and firmware to 2.11.12+ before deploying in
+any environment where radio-range attackers are in scope.
 
-2. REGIONAL op_class TABLE (IEEE 802.11-2024, ANNEX E, TABLE E-5)
-------------------------------------------------------------------
+2. REGIONAL op_class TABLE
+----------------------------
 
-  Region  width  op_class  channel start (GHz)
-  US      1 MHz  68        0.902
-  US      2 MHz  69        0.902
-  EU      1 MHz  66        0.863
-  EU      2 MHz  67        0.863
-  AU      1 MHz  68        0.902
-  AU      2 MHz  69        0.902
-  JP      1 MHz  68        0.902
-  JP      2 MHz  69        0.902
+  Region  width  op_class  band
+  EU      1 MHz  66        863 MHz
+  EU      2 MHz  67        863 MHz
+  US      1 MHz  68        902 MHz
+  US      2 MHz  69        902 MHz
+  AU      1 MHz  68        902 MHz
+  AU      2 MHz  69        902 MHz
+  JP      1 MHz  68        902 MHz
+  JP      2 MHz  69        902 MHz
 
-Using US 68/69 in an EU deployment causes hostapd_s1g to fail with
-"Invalid s1g config of oper class, country code and channel".
-start-ap.sh validates the tuple and rejects mismatches with exit 5.
+EU 66/67 are global operating classes 0.863 GHz at 1 MHz and 2 MHz
+spacing.  Source: IEEE 802.11-2020 Annex E, Table E-5, as reflected in
+the Wireshark operating-class table.  start-ap.sh accepts US/AU/JP
+0:68/1:69 and EU 0:66/1:67; any other country is refused unless
+ALLOW_UNKNOWN_REGION=1 is set.
 
-3. KNOWN LIMITATIONS (MM8108 RELEASE NOTES)
+3. S1G CAPABILITY FLAGS
+------------------------
+
+s1g_capab accepts [SHORT-GI-1] through [SHORT-GI-16] and
+[SHORT-GI-ALL].  [SHORT-GI-ALL] is the specification default and
+enables short GI for the configured bandwidth including sub-bandwidths;
+[SHORT-GI-1] would enable it at 1 MHz only.  This repository uses
+[SHORT-GI-ALL].
+Source: MorseMicro/hostapd_s1g_configuration.md v1.14, lines 42-61.
+
+4. DISABLING UCI FOR THE HaLOW RADIO
+-------------------------------------
+
+disable-uci-halow.sh requires HALOW_RADIO (for example radio1).  It
+does not disable every radioN: on a multi-radio router that would
+remove the management radio and take the device off the network.
+Run it as:
+    HALOW_RADIO=radio1 ./openwrt/disable-uci-halow.sh
+
+5. RELAYD ALTERNATIVE
+---------------------
+
+setup-relayd.sh writes a modern relay interface:
+    network.repeater_bridge=interface
+    network.repeater_bridge.proto='relay'
+    network.repeater_bridge.ipaddr='192.168.4.1'
+    network.repeater_bridge.network='br-lan wlan0'
+Modern relayd reads ipaddr and the network list from the interface
+section; there is no relayd.@relayd[0].local_ipaddr option.
+
+6. KNOWN LIMITATIONS (MM8108 RELEASE NOTES)
 --------------------------------------------
 
   Symptom                                Action
@@ -43,27 +74,31 @@ start-ap.sh validates the tuple and rejects mismatches with exit 5.
   TCP throughput ~10% below expectation  tune-morse.sh throughput
   Vendor IE OOB (CVE-2026-7764)          tune-morse.sh security
 
-4. PROCESS MODEL
+7. PROCESS MODEL
 ----------------
 
 start-ap.sh prepares the PHY, bridge port, and DHCP suppression, then
 execs hostapd_s1g in the foreground.  procd tracks the real hostapd
-PID, so respawn 3600 1 0 restarts the daemon if it dies.  This matches
-OpenWrt's own hostapd init: running hostapd without -B and letting
-procd own the process.
+PID.  halow-ap.init uses respawn 3600 5 5, so a permanent configuration
+error is retried five times and then left visible in logread instead of
+restarting forever.
 
-5. ANDROID CDC-NCM
+8. ANDROID CDC-NCM
 -------------------
 
-Android names CDC-NCM usbX when bit 1 of the first MAC octet is set,
-and the tethering regex matches ethX only.  check-cdc-ncm.sh prints
+The kernel names CDC-NCM usbX when bit 1 of the first MAC octet is set.
+On many Android releases, notably before Android 14 (U), the tethering
+configuration matches ethX only, so tethering does not enable.  Android
+14 changed the regex to include usbX, then reverted it and re-landed it
+for Android 15 (V); vendor forks vary.  check-cdc-ncm.sh prints
 LOCAL_BIT and the set-global-mac.sh remediation command.
 
-6. FILES
+9. FILES
 ---------
 
 README.txt
 requirements.txt
+lint.sh
 openwrt/disable-uci-halow.sh
 openwrt/hostapd_s1g.conf
 openwrt/start-ap.sh
@@ -78,23 +113,28 @@ android/README-android.txt
 android/check-cdc-ncm.sh
 android/set-global-mac.sh
 
-7. REFERENCES
--------------
+10. REFERENCES
+--------------
 
-CVE-2026-7764 (morse.ko Vendor IE OOB read):
-https://www.morsemicro.com/security/advisories/mm-sa-2026-003/
+CVE-2026-7764:
+https://app.opencve.io/cve/CVE-2026-7764
 
-IEEE 802.11-2024 Annex E, Table E-5 (S1G operating classes):
-https://standards.ieee.org/ieee/802.11/10548/
-
-OpenWrt hostapd respawn commit (respawn 3600 1 0):
-https://git.openwrt.org/?p=openwrt/staging/ynezz.git;a=commit;h=ceb612e463fc0dc6fbd7be66dc1a244544213c24
-
-Morse Micro hostapd_s1g configuration specification:
+Morse Micro hostapd_s1g configuration specification (s1g_capab,
+op_class, country_code):
 https://github.com/MorseMicro/hostap/blob/v1.14/hostapd_s1g_configuration.md
 
-MM8108 Linux release notes:
-https://www.morsemicro.com/resources/software_releases/linux/driver_source_code/MM8108-Linux-Software-Release-Notes.pdf
+Gateworks GW16167 wiki (channel mapping, UCI avoidance, firewall zone
+warning):
+https://trac.gateworks.com/wiki/expansion/gw16167
+
+OpenWrt hostapd respawn settings:
+https://git.openwrt.org/?p=openwrt/staging/chunkeey.git;a=commit;h=ceb612e463fc0dc6fbd7be66dc1a244544213c24
+
+OpenWrt relayd UCI schema (ipaddr, network list):
+https://git.openwrt.org/?p=openwrt/openwrt.git;a=blob;f=package/network/services/relayd/files/relay.sh
 
 Android CDC-NCM locally-administered bit:
-https://docs.rs/embassy-usb/0.5.1/embassy_usb/class/cdc_ncm/
+https://docs.rs/embassy-usb/0.1.0/x86_64-pc-windows-msvc/embassy_usb/class/cdc_ncm/index.html
+
+IEEE 802.11-2020 Annex E, Table E-5 (global operating classes 66/67):
+https://standards.ieee.org/ieee/802.11/7028/

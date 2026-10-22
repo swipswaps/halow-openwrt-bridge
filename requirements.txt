@@ -15,7 +15,11 @@ python3-distutils
 python3-setuptools
 gcc-multilib
 
-# OpenWrt target packages (install on the device, not on the build host)
+# Dev lint (host)
+shellcheck
+
+# OpenWrt target packages (install on the device)
 # iw
-# bridge-utils
-# kmod
+# bridge-utils   (optional; ip link nomaster is preferred)
+# kmod           (provides modinfo)
+# findutils      (optional; BusyBox find lacks -printf)
