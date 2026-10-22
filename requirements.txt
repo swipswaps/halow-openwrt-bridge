@@ -23,3 +23,7 @@ shellcheck
 # bridge-utils   (optional; ip link nomaster is preferred)
 # kmod           (provides modinfo)
 # findutils      (optional; BusyBox find lacks -printf)
+
+# Repository files
+# LICENSE        GPL-2.0
+# install.sh     one-command deployment helper

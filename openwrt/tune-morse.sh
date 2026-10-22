@@ -1,5 +1,6 @@
 #!/bin/sh
-# MM8108 workarounds.  check_param returns present | absent | unknown.
+# MM8108 workarounds and security guidance.
+# check_param returns present | absent | unknown.
 
 ACTION="$1"
 
@@ -17,12 +18,18 @@ check_param() {
 
 case "$ACTION" in
     security)
-        echo "CVE-2026-7764: out-of-bounds read in morse.ko Vendor IE processing."
-        echo "Unauthenticated attacker within radio range can disclose up to"
-        echo "9 bytes of kernel heap or cause a kernel panic via a malformed"
-        echo "802.11ah beacon or probe response.  CVSS 3.1: 6.8."
+        echo "CVE-2026-7764 / GHSA-7C7H-P74X-W3H5"
+        echo "Out-of-bounds read in morse.ko Vendor IE processing."
+        echo "morse_vendor_find_vendor_ie() does not validate the IE length"
+        echo "against the expected structure size before passing the result"
+        echo "to morse_vendor_rx_caps_ops_ie() and morse_vendor_fill_sta_vendor_info(),"
+        echo "which read at fixed offsets.  Because the check only requires the"
+        echo "IE to be longer than 3 bytes, a crafted 802.11ah beacon or probe"
+        echo "response can cause a heap out-of-bounds read of up to 9 bytes,"
+        echo "disclosing kernel heap memory or causing a kernel oops/panic."
+        echo "CVSS 3.1 base score: 6.8."
         echo "Fixed in HaLowLink 2 software 2.11.12 and later."
-        echo "Advisory: https://app.opencve.io/cve/CVE-2026-7764"
+        echo "Advisory: https://github.com/advisories/GHSA-7C7H-P74X-W3H5"
         echo "Action: upgrade morse.ko and firmware to 2.11.12+."
         ;;
     rssi-cliff)
@@ -49,12 +56,21 @@ case "$ACTION" in
             unknown) echo "modinfo unavailable; cannot verify enable_airtime_fairness." ;;
         esac
         ;;
+    thermal)
+        echo "MM8108 thermal protection: the on-chip PA delivers up to 26 dBm."
+        echo "Once the chip reaches 85 C internally the transmitter is disabled"
+        echo "to prevent permanent hardware damage.  Operating beyond this limit"
+        echo "can cause an unstable state or permanent link loss."
+        echo "Action: ensure enclosure airflow and duty-cycle headroom; monitor"
+        echo "die temperature if the driver exposes it, and avoid sustained"
+        echo "26 dBm operation in sealed enclosures."
+        ;;
     throughput)
         echo "MM6108/MM8108 TCP throughput is ~10% below expectation."
         echo "Documented release-note limitation; no module workaround."
         ;;
     *)
-        echo "usage: $0 security | rssi-cliff | strong-signal | close-range | wds | airtime | throughput"
+        echo "usage: $0 security | rssi-cliff | strong-signal | close-range | wds | airtime | thermal | throughput"
         exit 2
         ;;
 esac

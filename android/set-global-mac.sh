@@ -2,12 +2,17 @@
 # Clear the locally-administered bit on a CDC-NCM interface so Android
 # names it ethX and enables Ethernet tethering.
 # Usage: ./set-global-mac.sh usb0
-# Requires root.  Not persistent across replug.
+# Requires root (CAP_NET_ADMIN).  Not persistent across replug.
 
 IFACE="$1"
 if [ -z "$IFACE" ]; then
     echo "usage: $0 <interface>"
     exit 2
+fi
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "this script requires root; re-run with su or sudo."
+    exit 3
 fi
 
 MAC=$(ip link show "$IFACE" 2>&1 | grep -oE 'link/ether [0-9a-f:]+' | awk '{print $2}')
@@ -23,7 +28,6 @@ if [ "$LOCAL_BIT" -eq 0 ]; then
     exit 0
 fi
 
-# Clear bit 1 of the first octet: 0x02 -> 0x00.
 NEW_FIRST=$(printf '%02x' $(( 0x$FIRST & ~0x02 )))
 REST=$(echo "$MAC" | cut -d: -f2-)
 NEW_MAC="$NEW_FIRST:$REST"
