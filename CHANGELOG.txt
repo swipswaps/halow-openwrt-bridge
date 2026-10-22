@@ -1,26 +1,32 @@
 Wi-Fi HaLow OpenWrt Bridge - Change Log
 ========================================
 
+1.2.3  2026-10-22
+  Fix: lint.sh now lists openwrt/halow-ap.init explicitly.  The
+       openwrt/*.sh glob does not match .init files, so the procd init
+       script had been silently skipped since the previous revision.
+       This was a lint-gate regression, not a lint-pass.
+  Fix: README malformed AOSP URL containing a space.
+  Docs: README section 10 sharpens the cdc_ncm mechanism with the
+        FLAG_ETHER | FLAG_POINTTOPOINT and (net->dev_addr[0] & 0x02)
+        check from drivers/net/usb/cdc_ncm.c.
+  Docs: README section 9 states the respawn 3600 5 5 rationale
+        explicitly: bounded retries surface config errors instead of
+        masking them, unlike hostapd's own 3600 1 0.
+  Docs: README references now include the cdc_ncm commit, the AOSP
+        Connectivity CL, and the BusyBox flock commit.
+
 1.2.2  2026-10-22
-  Fix: set-global-mac.sh and README now state that the globally unique
-       MAC bit is the primary mechanism for ethN naming (cdc_ncm.c);
-       renaming is the fallback.  The previous round incorrectly said
-       the bit does not affect naming.
+  Fix: set-global-mac.sh and README state that the globally unique MAC
+       bit drives ethN naming (cdc_ncm.c); renaming is the fallback.
   Fix: hostapd_s1g.conf adds eapol_key_index_workaround=0 and
-       own_ip_addr=127.0.0.1, both present in every Gateworks S1G
-       example.
-  Fix: start-ap.sh uses flock on /var/run/halow-ap.lock so two
-       invocations cannot race; FORCE=1 still replaces a running AP.
-  Fix: install.sh verifies hostapd_s1g is installed and chmods
-       /var/run/hostapd 750.
+       own_ip_addr=127.0.0.1 (Gateworks S1G examples).
+  Fix: start-ap.sh uses flock single-instance guard.
+  Fix: install.sh verifies hostapd_s1g presence and chmods the socket dir.
   Fix: lint.sh scopes SC2034 to halow-ap.init only.
-  Docs: README section 10 corrects the CDC-NCM mechanism and scopes
-        the Android regex claim to pre-U / U+ / V+.
-  Docs: README section 12 states that a tag without the fetched
-        GPL-2.0 text is non-compliant with §1.
 
 1.2.1  2026-10-22
-  Fix: placeholder PSK rejected, set-global-mac rename, LICENSE pointer.
+  Fix: placeholder PSK rejected, LICENSE pointer, push gate in repo.
 
 1.2.0  2026-10-22
   Fix: lint gate, uci-defaults radio guard, setup-relayd SC2140.

@@ -85,46 +85,56 @@ relayd is not a full Layer-2 bridge.  DHCP, mDNS, and upstream throughput
 may not match a wired bridge.  WDS or 802.11s is preferred when both ends
 are controllable.
 
-9. PROCESS MODEL
-----------------
+9. PROCESS MODEL AND RESPAWN
+-----------------------------
 
 start-ap.sh holds /var/run/halow-ap.lock with flock so two invocations
 cannot race.  It execs hostapd_s1g in the foreground; procd tracks the
-real daemon.  halow-ap.init uses respawn 3600 5 5, so a permanent
-configuration error is retried five times and then left visible in
-logread.
+real daemon.
+
+halow-ap.init uses respawn 3600 5 5 (threshold 3600 s, timeout 5 s,
+retry 5).  This is the procd default, chosen deliberately: a permanent
+configuration error (for example an invalid regulatory tuple, exit 5)
+is retried five times and then left visible in logread instead of
+restarting forever.  OpenWrt's own hostapd init uses 3600 1 0 (infinite
+retries) because hostapd failures are usually transient; a validation
+failure is not, so bounded retries are correct here.
 
 10. ANDROID CDC-NCM
 --------------------
 
 Linux names a cdc_ncm interface eth%d when the globally unique bit is
-clear:
+clear.  drivers/net/usb/cdc_ncm.c checks
     if ((dev->driver_info->flags & FLAG_ETHER) != 0 &&
         ((dev->driver_info->flags & FLAG_POINTTOPOINT) == 0 ||
          (net->dev_addr[0] & 0x02) == 0))
             strcpy(net->name, "eth%d");
+The commit message for this change states that the interface naming is
+either usb%d or eth%d based on the global uniqueness of the MAC address.
 Bit 1 of the first octet is the locally administered bit.  Clearing it
 makes the MAC globally unique, and the kernel assigns ethN at probe.
-drivers/net/usb/cdc_ncm.c, the patch "net: cdc_ncm: switch to eth%d
-interface naming".
 
 Android's EthernetTracker historically matched eth\d only
-(config_ethernet_iface_regex=eth\d).  A 2023 change included usb\d on
-Android U+ (14), then reverted and re-landed for Android 15+ (V).
-Vendor forks vary.  On builds that still match eth\d only, a usbN
-interface is ignored and tethering does not enable.
+(config_ethernet_iface_regex=eth\d).  A 2023 Connectivity CL changed the
+default to include usb\d+ and eth%d on Android U+ (14); Android T (13)
+continues to match eth%d only.  Vendor forks vary.  On builds that
+match eth\d only, a usbN interface is ignored and tethering does not
+enable.
 
 set-global-mac.sh clears the locally administered bit and then renames
-usbN -> ethN as a deterministic step.  The rename is the fallback; the
-MAC bit is the primary mechanism.
+usbN -> ethN as a deterministic fallback for interfaces that have
+already probed.  The MAC bit is the primary mechanism; the rename is
+the fallback.
 
 11. LINT GATE
 --------------
 
-lint.sh runs sh -n and, when available, shellcheck -s sh on every
-script.  SC2034 is excluded only for halow-ap.init, where START, STOP,
-and USE_PROCD are read by rc.common by indirection.  push.sh runs
-lint.sh and aborts on failure unless LINT_OVERRIDE=1.
+lint.sh runs sh -n and, when available, shellcheck -s sh on every script.
+openwrt/halow-ap.init is listed explicitly because its .init extension
+is not matched by the openwrt/*.sh glob.  SC2034 is excluded only for
+halow-ap.init, where START, STOP, and USE_PROCD are read by rc.common
+by indirection.  push.sh runs lint.sh and aborts on failure unless
+LINT_OVERRIDE=1.
 
 12. LICENSE
 ------------
@@ -163,23 +173,29 @@ android/set-global-mac.sh
 14. REFERENCES
 --------------
 
-CVE-2026-7764:
-https://vuldb.com/cve/CVE-2026-7764
+CVE-2026-7764 (GHSA-7C7H-P74X-W3H5):
+https://github.com/advisories/GHSA-7C7H-P74X-W3H5
 
-Linux cdc_ncm eth%d naming:
-https://lore.kernel.org/all/20210628143305.32978-72-sashal@kernel.org/
+Linux cdc_ncm eth%d naming (commit c1a3d406):
+https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=c1a3d4067309451e68c33dbd356032549cc0bd8e
 
-AOSP config_ethernet_iface_regex:
-https://android.googlesource.com/platform/frameworks/base/+/ff662fa937d5443d307f03692638314d84d8341b/core/res/res/values/config.xml
-
-AOSP merge "Include both eth%d and usb%d on U+":
+AOSP Connectivity CL: config_ethernet_iface_regex on Android U+:
 https://gitea.com/ /merge/41d7e77128
 
 Gateworks GW16167 S1G example:
 https://trac.gateworks.com/wiki/expansion/gw16167?format=txt
 
-OpenWrt hostapd respawn commit:
+Morse Micro hostapd_s1g configuration specification:
+https://github.com/MorseMicro/hostap/blob/v1.14/hostapd_s1g_configuration.md
+
+OpenWrt hostapd respawn commit (3600 1 0):
 https://git.openwrt.org/openwrt/staging/chunkeey/commit/?id=ceb612e463fc0dc6fbd7be66dc1a244544213c24
+
+OpenWrt procd respawn parameters (threshold timeout retry):
+https://mintlify.wiki/openwrt/openwrt/system/procd
+
+BusyBox flock enabled by default on OpenWrt:
+https://git.openwrt.org/?p=openwrt/openwrt.git;a=commit;h=2277cd1249
 
 GPL-2.0 verbatim text:
 https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
