@@ -5,13 +5,20 @@ Path A: MM8108-RD17 (driverless CDC-NCM)
 -----------------------------------------
 
 1. Plug the RD17 into USB-C (OTG).
-2. It appears as a wired Ethernet interface.
-3. Android obtains an IP from the upstream LAN DHCP.
-4. No DHCP server should run on the HaLow link itself.
+2. It appears as a wired Ethernet interface.  Depending on the MAC
+   address, the interface may be named usbX or ethX.
+3. Android should obtain an IP from the upstream LAN DHCP.
+4. No DHCP server runs on the HaLow link itself.
 
-Check interface:
-    ip -br link
-    dmesg | grep -i -E 'cdc_ncm|cdc_ether'
+Interface naming caveat:
+Android chooses usbX when the MAC address has the locally-administered
+bit set (bit 1 of the first octet).  A globally assigned MAC makes the
+interface appear as ethX, which the Android Ethernet service handles
+more reliably.  Run ./check-cdc-ncm.sh and inspect first_octet.
+
+If the interface appears but no IP is assigned:
+    dumpsys ethernet
+    settings get global tether_enable
 
 
 Path B: MM8108-RD09 (native driver)
@@ -19,10 +26,9 @@ Path B: MM8108-RD09 (native driver)
 
 1. Build the Morse Micro driver against the device kernel headers.
 2. insmod morse.ko country=US
-3. Run wpa_supplicant_s1g in STA mode.
+3. wpa_supplicant_s1g -i wlan0 -c /path/to/wpa_supplicant_s1g.conf
 
-Minimal wpa_supplicant_s1g.conf (WPA2-PSK, CORRECTED):
--------------------------------------------------------
+Minimal STA profile (WPA2-PSK):
 
     country=US
     ctrl_interface=/var/run/wpa_supplicant_s1g
@@ -35,31 +41,10 @@ Minimal wpa_supplicant_s1g.conf (WPA2-PSK, CORRECTED):
         key_mgmt=WPA-PSK
     }
 
-The proto=RSN, pairwise=CCMP, and ieee80211w=2 lines are required for
-stable S1G association.  Without them the STA may associate but drop
-intermittently.
 
-Minimal WPA3-SAE variant:
+Known MM8108 behaviour (from Morse Micro release notes)
+--------------------------------------------------------
 
-    country=US
-    ctrl_interface=/var/run/wpa_supplicant_s1g
-    proto=RSN
-    pairwise=CCMP
-    ieee80211w=2
-    pmf=2
-    sae_pwe=1
-    network={
-        ssid="HaLow-Bridge"
-        sae_password="ChangeMe_HaLow_2026"
-        key_mgmt=SAE
-    }
-
-
-Bridge mode note
-----------------
-
-AP side: wlan0 is a port of br-lan.  No IP on wlan0.  DHCP not run on it.
-STA side: IP comes from upstream LAN DHCP via the bridge.
-
-If Layer-2 bridging is impossible, use setup-relayd.sh on OpenWrt.
-relayd forwards ARP and DHCP without a hard bridge.
+- 1 MHz at strong signal: receive degradation.
+- 2 MHz near -73 dBm RSSI: receive degradation.
+- Very close range: intermittent STA association failure.
