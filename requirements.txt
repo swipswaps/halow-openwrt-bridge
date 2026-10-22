@@ -15,7 +15,7 @@ python3-distutils
 python3-setuptools
 gcc-multilib
 
-# Runtime on the OpenWrt target
-iw
-bridge-utils
-kmod
+# OpenWrt target packages (install on the device, not on the build host)
+# iw
+# bridge-utils
+# kmod

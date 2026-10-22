@@ -1,8 +1,7 @@
 #!/bin/sh
-# Prepare the HaLow link, then exec hostapd_s1g in the foreground so
-# procd tracks the real daemon.  Exit codes: 0 unreachable (exec
-# replaces the process), 2 no PHY, 3 bridge missing, 4 setup failed,
-# 5 regulatory tuple invalid.
+# Start HaLow AP.  Execs hostapd_s1g in the foreground so procd tracks
+# the real daemon.  Exit codes: 0 unreachable (exec replaces the shell),
+# 2 no PHY, 3 bridge missing, 4 setup failed, 5 regulatory tuple invalid.
 
 HALOW_IF=wlan0
 BRIDGE=br-lan
@@ -24,20 +23,36 @@ case "$COUNTRY:$CHWIDTH:$OPCLASS" in
 esac
 echo "regulatory tuple: $COUNTRY/$CHWIDTH/$OPCLASS"
 
-# --- PHY discovery --------------------------------------------------------
+# --- hostapd presence -----------------------------------------------------
+if ! command -v hostapd_s1g >/dev/null 2>&1; then
+    echo "hostapd_s1g not found.  Install CONFIG_PACKAGE_hostapd_s1g."
+    exit 4
+fi
+
+# --- PHY discovery (BusyBox-safe: no find -printf, no ls) -----------------
 if ! iw dev "$HALOW_IF" info >/dev/null 2>&1; then
-    PHY=$(iw dev 2>&1 | awk '/phy#/ {print $2; exit}')
-    [ -z "$PHY" ] && PHY=$(find /sys/class/ieee80211/ -maxdepth 1 -type l -printf '%f\n' 2>&1 | head -n 1)
+    PHY=""
+    for phy_path in /sys/class/ieee80211/*; do
+        if [ -e "$phy_path" ]; then
+            PHY=$(basename "$phy_path")
+            break
+        fi
+    done
+    if [ -z "$PHY" ]; then
+        PHY=$(iw dev 2>&1 | awk '/phy#/ {print $2; exit}')
+    fi
     if [ -n "$PHY" ]; then
         iw phy "$PHY" interface add "$HALOW_IF" type managed || exit 4
+        echo "created $HALOW_IF on $PHY"
     else
-        echo "No ieee80211 phy.  Is the morse driver loaded?"; exit 2
+        echo "No ieee80211 phy.  Is the morse driver loaded?"
+        exit 2
     fi
 fi
 
 ip link set "$HALOW_IF" up || exit 4
 
-# --- bridge membership (before hostapd, so failure aborts cleanly) --------
+# --- bridge membership (before exec, so failure aborts cleanly) -----------
 if ip link show "$BRIDGE" >/dev/null 2>&1; then
     FOUND=0
     for port in $(uci get network.@device[-1].ports 2>&1); do
@@ -49,7 +64,8 @@ if ip link show "$BRIDGE" >/dev/null 2>&1; then
         /etc/init.d/network reload
     fi
 else
-    echo "Bridge $BRIDGE not found.  Use setup-relayd.sh."; exit 3
+    echo "Bridge $BRIDGE not found.  Use setup-relayd.sh."
+    exit 3
 fi
 
 # --- DHCP suppression -----------------------------------------------------

@@ -1,7 +1,6 @@
 #!/bin/sh
-# CDC-NCM diagnosis.  Android’s Ethernet tethering regex matches ethX
-# only; the kernel names CDC-NCM usbX when bit 1 of the first MAC octet
-# is set (locally administered).
+# CDC-NCM diagnosis.  Android names CDC-NCM usbX when bit 1 of the
+# first MAC octet is set; the tethering regex matches ethX only.
 
 echo "=== Interfaces ==="
 ip -br link 2>&1
@@ -22,4 +21,11 @@ done
 
 echo "=== Android Ethernet service ==="
 dumpsys ethernet 2>&1 | head -n 30
-settings get global tether_enable 2>&1
+echo "tether_enable=$(settings get global tether_enable 2>&1)"
+
+echo "=== Naming summary ==="
+if ip -br link 2>&1 | awk '{print $1}' | grep -q '^eth'; then
+    echo "ethX interface present; Android Ethernet service should recognise it."
+else
+    echo "No ethX interface.  If a usbX interface exists, apply set-global-mac.sh."
+fi
