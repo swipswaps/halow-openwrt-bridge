@@ -25,3 +25,6 @@ curl             # fetch-license.sh downloads the verbatim GPL-2.0 text
 # kmod           (provides modinfo)
 # findutils      (optional; BusyBox find lacks -printf)
 # flock          (BusyBox applet; used for the single-instance guard)
+# relayd         (optional; setup-relayd.sh installs it via opkg or apk)
+#
+# OpenWrt 24.10+ uses apk; setup-relayd.sh detects opkg vs apk.

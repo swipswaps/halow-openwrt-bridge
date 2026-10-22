@@ -77,16 +77,31 @@ not disable every radioN.  Run it as:
 
 uci-defaults-halow does not disable any radioN.
 
-8. RELAYD CAVEAT
------------------
+8. RELAYD ALTERNATIVE (CAVEAT)
+------------------------------
 
 setup-relayd.sh writes a modern relay interface:
+    network.repeater_bridge=interface
     network.repeater_bridge.proto=relay
     network.repeater_bridge.ipaddr=192.168.4.1
-    network.repeater_bridge.network='br-lan wlan0'
-relayd is not a full Layer-2 bridge.  DHCP, mDNS, and upstream throughput
-may not match a wired bridge.  WDS or 802.11s is preferred when both ends
-are controllable.
+    network.repeater_bridge.network=br-lan
+    network.repeater_bridge.network=wlan0
+
+The network option is a UCI list, not a space-separated string.  relayd
+validates it as list(string) and reads it with config_get, which expects
+multiple list entries.  The script uses uci set for the first element
+and uci add_list for the second, which is idempotent across re-runs.
+
+The relay interface is not instantiated until netifd processes the
+configuration, so the script runs /etc/init.d/network reload before
+starting relayd.
+
+relayd is installed with opkg on releases that use opkg, and with apk on
+OpenWrt 24.10+ where apk is the package manager.
+
+Caveat: relayd is not a full Layer-2 bridge.  DHCP, mDNS, and upstream
+throughput may not match a wired bridge.  WDS or 802.11s is preferred
+when both ends are controllable.
 
 9. PROCESS MODEL AND RESPAWN
 -----------------------------
@@ -113,10 +128,10 @@ checks (net->dev_addr[0] & 0x02) == 0 with FLAG_ETHER | FLAG_POINTTOPOINT;
 the commit message states the name is either usb%d or eth%d based on the
 global uniqueness of the MAC address.
 
-Android T (13) matches config_ethernet_iface_regex=eth%d only.  Android U+
-(14) includes both usb\d+ and eth%d.  Vendor forks vary.  On builds that
-match eth%d only, a usbN interface is ignored and tethering does not
-enable.
+Android T (13) matches config_ethernet_iface_regex=eth%d only.
+Android U+ (14) includes both usb\d+ and eth%d.  Vendor forks vary.
+On builds that match eth%d only, a usbN interface is ignored and
+tethering does not enable.
 
 set-global-mac.sh clears the locally administered bit and then renames
 usbN -> ethN as a deterministic fallback.  The MAC bit is the primary
@@ -183,7 +198,7 @@ https://android.googlesource.com/platform/packages/modules/Connectivity/+/refs/h
 Morse Micro hostapd_s1g configuration specification:
 https://github.com/MorseMicro/hostap/blob/v1.14/hostapd_s1g_configuration.md
 
-Gateworks GW16167 wiki (channel mapping, UCI avoidance, thermal note):
+Gateworks GW16167 wiki:
 https://trac.gateworks.com/wiki/expansion/gw16167
 
 Morse Micro Application Note 56, MM8108 Thermal Protection Mechanism:
@@ -194,6 +209,9 @@ https://openwrt.org/docs/guide-developer/procd-init-scripts
 
 OpenWrt hostapd respawn commit (3600 1 0):
 https://git.openwrt.org/openwrt/staging/chunkeey/commit/?id=ceb612e463fc0dc6fbd7be66dc1a244544213c24
+
+relayd UCI validation (network:list(string), ipaddr):
+package/network/services/relayd/files/relay.sh, OpenWrt
 
 GPL-2.0 verbatim text:
 https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt

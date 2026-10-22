@@ -1,31 +1,27 @@
 Wi-Fi HaLow OpenWrt Bridge - Change Log
 ========================================
 
+1.2.5  2026-10-22
+  Fix: setup-relayd.sh writes network as a UCI list (uci set + uci
+       add_list), not a space-separated string.  relayd validates the
+       option as list(string) and reads it with config_get; the string
+       form left relayd with a single bogus network name.
+  Fix: setup-relayd.sh runs /etc/init.d/network reload after commit so
+       netifd instantiates the relay interface before relayd starts.
+  Fix: setup-relayd.sh installs relayd with apk when opkg is absent.
+  Docs: README section 8 documents the UCI list semantics and the
+        network reload requirement; references cite relayd's
+        network:list(string) validation.
+
 1.2.4  2026-10-22
-  Fix: start-ap.sh checks for flock before using it.  The previous
-       ordering exited 6 ("another instance holds lock") when flock was
-       simply missing, instead of 4 ("flock not found").
-  Fix: install.sh now includes flock in the precondition set.
-  Fix: README malformed AOSP URL replaced with the stable
-       android.googlesource.com Connectivity entry point and the CL
-       number in prose.
-  Fix: LICENSE is populated with the verbatim GPL-2.0 text by
-       fetch-license.sh, and push.sh refuses to push while LICENSE is
-       still the pointer.  fetch-license.sh validates the download.
-  Fix: android/README-android.txt updated to the corrected CDC-NCM
-       reasoning and the 90/85 C thermal thresholds.
-  Fix: push.sh uses a temporary commit-message file so a message
-       containing double quotes does not break git commit.
-  Docs: thermal thresholds now cite Application Note 56 (Tp_on 90 C,
-        Tp_off 85 C for firmware 1.17.9) and the Gateworks 85 C note.
-  Docs: removed unverified kernel and OpenWrt commit-hash URLs; the
-        cdc_ncm patch is cited by title and file path, procd by the
-        stable OpenWrt documentation URL.
+  Fix: flock ordering in start-ap.sh; flock in install.sh preconditions.
+  Fix: README malformed AOSP URL.
+  Fix: LICENSE populated with verbatim GPL-2.0 text and gated in push.sh.
+  Fix: android/README-android.txt aligned with corrected CDC-NCM reasoning.
+  Docs: thermal thresholds 90/85 C from Application Note 56.
 
 1.2.3  2026-10-22
-  Fix: lint.sh lists openwrt/halow-ap.init explicitly (the .init
-       extension was skipped by openwrt/*.sh).
-  Fix: README URL and cdc_ncm/respawn rationale.
+  Fix: lint.sh lists openwrt/halow-ap.init explicitly.
 
 1.2.2  2026-10-22
   Fix: cdc_ncm MAC-bit naming, Gateworks EAPOL/NAS fields, flock.
