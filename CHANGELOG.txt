@@ -1,32 +1,37 @@
 Wi-Fi HaLow OpenWrt Bridge - Change Log
 ========================================
 
+1.2.4  2026-10-22
+  Fix: start-ap.sh checks for flock before using it.  The previous
+       ordering exited 6 ("another instance holds lock") when flock was
+       simply missing, instead of 4 ("flock not found").
+  Fix: install.sh now includes flock in the precondition set.
+  Fix: README malformed AOSP URL replaced with the stable
+       android.googlesource.com Connectivity entry point and the CL
+       number in prose.
+  Fix: LICENSE is populated with the verbatim GPL-2.0 text by
+       fetch-license.sh, and push.sh refuses to push while LICENSE is
+       still the pointer.  fetch-license.sh validates the download.
+  Fix: android/README-android.txt updated to the corrected CDC-NCM
+       reasoning and the 90/85 C thermal thresholds.
+  Fix: push.sh uses a temporary commit-message file so a message
+       containing double quotes does not break git commit.
+  Docs: thermal thresholds now cite Application Note 56 (Tp_on 90 C,
+        Tp_off 85 C for firmware 1.17.9) and the Gateworks 85 C note.
+  Docs: removed unverified kernel and OpenWrt commit-hash URLs; the
+        cdc_ncm patch is cited by title and file path, procd by the
+        stable OpenWrt documentation URL.
+
 1.2.3  2026-10-22
-  Fix: lint.sh now lists openwrt/halow-ap.init explicitly.  The
-       openwrt/*.sh glob does not match .init files, so the procd init
-       script had been silently skipped since the previous revision.
-       This was a lint-gate regression, not a lint-pass.
-  Fix: README malformed AOSP URL containing a space.
-  Docs: README section 10 sharpens the cdc_ncm mechanism with the
-        FLAG_ETHER | FLAG_POINTTOPOINT and (net->dev_addr[0] & 0x02)
-        check from drivers/net/usb/cdc_ncm.c.
-  Docs: README section 9 states the respawn 3600 5 5 rationale
-        explicitly: bounded retries surface config errors instead of
-        masking them, unlike hostapd's own 3600 1 0.
-  Docs: README references now include the cdc_ncm commit, the AOSP
-        Connectivity CL, and the BusyBox flock commit.
+  Fix: lint.sh lists openwrt/halow-ap.init explicitly (the .init
+       extension was skipped by openwrt/*.sh).
+  Fix: README URL and cdc_ncm/respawn rationale.
 
 1.2.2  2026-10-22
-  Fix: set-global-mac.sh and README state that the globally unique MAC
-       bit drives ethN naming (cdc_ncm.c); renaming is the fallback.
-  Fix: hostapd_s1g.conf adds eapol_key_index_workaround=0 and
-       own_ip_addr=127.0.0.1 (Gateworks S1G examples).
-  Fix: start-ap.sh uses flock single-instance guard.
-  Fix: install.sh verifies hostapd_s1g presence and chmods the socket dir.
-  Fix: lint.sh scopes SC2034 to halow-ap.init only.
+  Fix: cdc_ncm MAC-bit naming, Gateworks EAPOL/NAS fields, flock.
 
 1.2.1  2026-10-22
-  Fix: placeholder PSK rejected, LICENSE pointer, push gate in repo.
+  Fix: placeholder PSK, LICENSE pointer, push gate.
 
 1.2.0  2026-10-22
   Fix: lint gate, uci-defaults radio guard, setup-relayd SC2140.

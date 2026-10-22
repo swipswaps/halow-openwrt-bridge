@@ -1,8 +1,5 @@
 #!/bin/sh
-# Fetch the verbatim GPL-2.0 text into LICENSE.
-# The repository ships a pointer file instead of the full text to avoid
-# partial or diverging copies.  Run this before tagging or distributing.
-# Exit codes: 0 success, 2 curl missing, 3 download failed.
+# Fetch the verbatim GPL-2.0 text into LICENSE and validate it.
 
 URL="https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt"
 
@@ -16,7 +13,16 @@ if ! curl -fsSL "$URL" -o LICENSE.tmp; then
     exit 3
 fi
 
+if ! grep -q "GNU GENERAL PUBLIC LICENSE" LICENSE.tmp; then
+    echo "downloaded file does not look like GPL-2.0."
+    exit 3
+fi
+
+if ! grep -q "Version 2, June 1991" LICENSE.tmp; then
+    echo "downloaded file is not GPL-2.0."
+    exit 3
+fi
+
 mv LICENSE.tmp LICENSE
 echo "wrote $(wc -c < LICENSE) bytes to LICENSE."
-echo "verify: head -n 1 LICENSE"
 exit 0

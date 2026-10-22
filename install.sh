@@ -1,6 +1,5 @@
 #!/bin/sh
 # Install the HaLow scripts on the target OpenWrt device.
-# Run on the device as root, from the repository root.
 # Exit codes: 0 success, 2 preconditions missing, 3 target not writable.
 
 TARGET_DIR=/usr/share/halow
@@ -13,7 +12,7 @@ for f in /etc/rc.common /etc/config/network /etc/config/firewall; do
     fi
 done
 
-for tool in uci iw hostapd_s1g; do
+for tool in uci iw hostapd_s1g flock; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "$tool missing; install it first (opkg install $tool)."
         exit 2
@@ -46,7 +45,7 @@ chmod +x "$INIT"
 echo "installed and enabled $INIT"
 echo "next steps on this device:"
 echo "  1. edit $TARGET_DIR/hostapd_s1g.conf: set wpa_passphrase,"
-echo "     country_code, channel, op_class (the placeholder PSK is rejected)"
+echo "     country_code, channel, op_class (placeholder PSK is rejected)"
 echo "  2. HALOW_RADIO=radioN $TARGET_DIR/disable-uci-halow.sh"
 echo "  3. /etc/init.d/halow-ap start"
 echo ""

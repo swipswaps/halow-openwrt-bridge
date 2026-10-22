@@ -28,11 +28,14 @@ passphrase that is empty or contains CHANGEME.
 3. THERMAL PROTECTION (MM8108)
 -------------------------------
 
-The MM8108 PA delivers up to 26 dBm.  Over-temperature protection
-disables the transmitter at the datasheet threshold.  Public summaries
-cite approximately 85 C; verify against the MM8108 datasheet for the
-specific silicon revision.  Ensure enclosure airflow and duty-cycle
-headroom; avoid sustained 26 dBm in sealed enclosures.
+Morse Micro Application Note 56 (MM8108 Thermal Protection Mechanism)
+states, for firmware 1.17.9:
+  Tp_on  = 90 C  (transmitter disabled)
+  Tp_off = 85 C  (transmitter re-enabled)
+Gateworks notes the transmitter is disabled once the die reaches 85 C
+internally.  Ensure enclosure airflow and duty-cycle headroom; avoid
+sustained 26 dBm operation in sealed enclosures.
+Run `tune-morse.sh thermal` for the on-device reminder.
 
 4. REGIONAL op_class TABLE
 ----------------------------
@@ -93,38 +96,31 @@ cannot race.  It execs hostapd_s1g in the foreground; procd tracks the
 real daemon.
 
 halow-ap.init uses respawn 3600 5 5 (threshold 3600 s, timeout 5 s,
-retry 5).  This is the procd default, chosen deliberately: a permanent
-configuration error (for example an invalid regulatory tuple, exit 5)
-is retried five times and then left visible in logread instead of
-restarting forever.  OpenWrt's own hostapd init uses 3600 1 0 (infinite
-retries) because hostapd failures are usually transient; a validation
-failure is not, so bounded retries are correct here.
+retry 5), which is the procd default.  A permanent configuration error
+(for example an invalid regulatory tuple, exit 5) is retried five times
+and then left visible in logread instead of restarting forever.
+OpenWrt's own hostapd init uses 3600 1 0 (infinite retries) specifically
+to avoid procd classifying a transient daemon restart as a crash loop;
+a validation failure is not transient, so bounded retries are correct
+here.
 
 10. ANDROID CDC-NCM
 --------------------
 
-Linux names a cdc_ncm interface eth%d when the globally unique bit is
-clear.  drivers/net/usb/cdc_ncm.c checks
-    if ((dev->driver_info->flags & FLAG_ETHER) != 0 &&
-        ((dev->driver_info->flags & FLAG_POINTTOPOINT) == 0 ||
-         (net->dev_addr[0] & 0x02) == 0))
-            strcpy(net->name, "eth%d");
-The commit message for this change states that the interface naming is
-either usb%d or eth%d based on the global uniqueness of the MAC address.
-Bit 1 of the first octet is the locally administered bit.  Clearing it
-makes the MAC globally unique, and the kernel assigns ethN at probe.
+Linux names a cdc_ncm interface eth%d when the MAC address is globally
+unique (bit 1 of the first octet clear).  drivers/net/usb/cdc_ncm.c
+checks (net->dev_addr[0] & 0x02) == 0 with FLAG_ETHER | FLAG_POINTTOPOINT;
+the commit message states the name is either usb%d or eth%d based on the
+global uniqueness of the MAC address.
 
-Android's EthernetTracker historically matched eth\d only
-(config_ethernet_iface_regex=eth\d).  A 2023 Connectivity CL changed the
-default to include usb\d+ and eth%d on Android U+ (14); Android T (13)
-continues to match eth%d only.  Vendor forks vary.  On builds that
-match eth\d only, a usbN interface is ignored and tethering does not
+Android T (13) matches config_ethernet_iface_regex=eth%d only.  Android U+
+(14) includes both usb\d+ and eth%d.  Vendor forks vary.  On builds that
+match eth%d only, a usbN interface is ignored and tethering does not
 enable.
 
 set-global-mac.sh clears the locally administered bit and then renames
-usbN -> ethN as a deterministic fallback for interfaces that have
-already probed.  The MAC bit is the primary mechanism; the rename is
-the fallback.
+usbN -> ethN as a deterministic fallback.  The MAC bit is the primary
+mechanism; the rename is the fallback.
 
 11. LINT GATE
 --------------
@@ -132,17 +128,18 @@ the fallback.
 lint.sh runs sh -n and, when available, shellcheck -s sh on every script.
 openwrt/halow-ap.init is listed explicitly because its .init extension
 is not matched by the openwrt/*.sh glob.  SC2034 is excluded only for
-halow-ap.init, where START, STOP, and USE_PROCD are read by rc.common
-by indirection.  push.sh runs lint.sh and aborts on failure unless
+halow-ap.init, where START, STOP, and USE_PROCD are read by rc.common by
+indirection.  push.sh runs lint.sh and aborts on failure unless
 LINT_OVERRIDE=1.
 
 12. LICENSE
 ------------
 
 SPDX-License-Identifier: GPL-2.0-only.
-LICENSE is a pointer.  Run ./fetch-license.sh to populate it with the
-verbatim GPL-2.0 text before tagging or distributing.  A tag without
-the fetched text is not compliant with GPL-2.0 §1.
+fetch-license.sh populates LICENSE with the verbatim GPL-2.0 text and
+validates the download before replacing the pointer.  push.sh refuses
+to push if LICENSE does not contain the full text, so a tagged release
+cannot be non-compliant by omission.
 
 13. FILES
 ----------
@@ -173,29 +170,30 @@ android/set-global-mac.sh
 14. REFERENCES
 --------------
 
-CVE-2026-7764 (GHSA-7C7H-P74X-W3H5):
+GHSA-7C7H-P74X-W3H5 (CVE-2026-7764):
 https://github.com/advisories/GHSA-7C7H-P74X-W3H5
 
-Linux cdc_ncm eth%d naming (commit c1a3d406):
-https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=c1a3d4067309451e68c33dbd356032549cc0bd8e
+Linux cdc_ncm eth%d naming:
+"net: cdc_ncm: switch to eth%d interface naming" (drivers/net/usb/cdc_ncm.c)
 
-AOSP Connectivity CL: config_ethernet_iface_regex on Android U+:
-https://gitea.com/ /merge/41d7e77128
-
-Gateworks GW16167 S1G example:
-https://trac.gateworks.com/wiki/expansion/gw16167?format=txt
+AOSP Connectivity CL 41d7e77128 ("Include both eth%d and usb%d ethernet
+interfaces on U+"):
+https://android.googlesource.com/platform/packages/modules/Connectivity/+/refs/heads/main
 
 Morse Micro hostapd_s1g configuration specification:
 https://github.com/MorseMicro/hostap/blob/v1.14/hostapd_s1g_configuration.md
 
+Gateworks GW16167 wiki (channel mapping, UCI avoidance, thermal note):
+https://trac.gateworks.com/wiki/expansion/gw16167
+
+Morse Micro Application Note 56, MM8108 Thermal Protection Mechanism:
+https://www.morsemicro.com/
+
+OpenWrt procd init scripts:
+https://openwrt.org/docs/guide-developer/procd-init-scripts
+
 OpenWrt hostapd respawn commit (3600 1 0):
 https://git.openwrt.org/openwrt/staging/chunkeey/commit/?id=ceb612e463fc0dc6fbd7be66dc1a244544213c24
-
-OpenWrt procd respawn parameters (threshold timeout retry):
-https://mintlify.wiki/openwrt/openwrt/system/procd
-
-BusyBox flock enabled by default on OpenWrt:
-https://git.openwrt.org/?p=openwrt/openwrt.git;a=commit;h=2277cd1249
 
 GPL-2.0 verbatim text:
 https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt

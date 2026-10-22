@@ -10,20 +10,20 @@ BRIDGE=br-lan
 CONF="$(dirname "$0")/hostapd_s1g.conf"
 LOCK=/var/run/halow-ap.lock
 
-# --- single-instance lock -------------------------------------------------
-exec 9>"$LOCK"
-if ! flock -n 9; then
-    echo "another start-ap.sh holds $LOCK."
-    exit 6
-fi
-
-# --- tools ----------------------------------------------------------------
+# --- tools FIRST, so flock is known to exist before it is used ------------
 for tool in iw hostapd_s1g flock; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "$tool not found.  Install the matching OpenWrt package."
         exit 4
     fi
 done
+
+# --- single-instance lock -------------------------------------------------
+exec 9>"$LOCK"
+if ! flock -n 9; then
+    echo "another start-ap.sh holds $LOCK."
+    exit 6
+fi
 
 # --- placeholder PSK guard ------------------------------------------------
 PSK=$(awk '/^wpa_passphrase=/ {sub(/^wpa_passphrase=/,""); print; exit}' "$CONF")
@@ -68,14 +68,13 @@ if [ "$MATCH" -eq 0 ]; then
 fi
 echo "regulatory tuple: $COUNTRY/$CHWIDTH/$OPCLASS"
 
-# --- stop any existing hostapd_s1g before probe ---------------------------
+# --- stop any existing hostapd_s1g ---------------------------------------
 if pidof hostapd_s1g >/dev/null 2>&1; then
     if [ "${FORCE:-0}" != "1" ]; then
         echo "hostapd_s1g already running; set FORCE=1 to replace it."
         exit 6
     fi
     killall -q hostapd_s1g
-    # wait up to 3 s for the interface to leave AP mode
     i=0
     while [ "$i" -lt 3 ]; do
         if ! iw dev "$HALOW_IF" info 2>&1 | grep -q "type AP"; then

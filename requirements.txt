@@ -19,8 +19,9 @@ gcc-multilib
 shellcheck
 curl             # fetch-license.sh downloads the verbatim GPL-2.0 text
 
-# OpenWrt target packages (install on the device)
+# OpenWrt target packages / BusyBox applets (install on the device)
 # iw
 # bridge-utils   (optional; ip link nomaster is preferred)
 # kmod           (provides modinfo)
 # findutils      (optional; BusyBox find lacks -printf)
+# flock          (BusyBox applet; used for the single-instance guard)
